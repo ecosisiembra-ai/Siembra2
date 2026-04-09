@@ -1545,5 +1545,20 @@ try { sbHub = supabase.createClient(SB_URL_HUB, SB_KEY_HUB); window.sb = sbHub; 
     <button onclick="closeModal('modal-codigo')" style="width:100%;padding:13px;background:var(--verde);color:white;border:none;border-radius:var(--radius-md);font-family:var(--font-display);font-size:15px;font-weight:800;cursor:pointer">¡Entendido!</button>
   </div>
 </div>
+<script>
+// PWA: Service Worker + PushManager — notificaciones push para padres de familia
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js')
+      .then(r => {
+        console.log('[SW] Registrado en padres:', r.scope);
+        if ('PushManager' in window) {
+          console.log('[SW] PushManager disponible para notificaciones push');
+        }
+      })
+      .catch(e => console.warn('[SW] Error:', e));
+  });
+}
+</script>
 </body>
 </html>

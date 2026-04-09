@@ -4563,14 +4563,7 @@ window.addEventListener('siembra:datos-cargados', () => {
   }
 });
 
-// ── PWA: Service Worker + Install prompt ─────────────────
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js')
-      .then(r => console.log('[SW] Registrado:', r.scope))
-      .catch(e => console.warn('[SW] Error:', e));
-  });
-}
+// ── PWA: Service Worker — registrado en index.html (inline) ─────────────────
 // Install prompt
 let _pwaPrompt = null;
 window.addEventListener('beforeinstallprompt', e => {
