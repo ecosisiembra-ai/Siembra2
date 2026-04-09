@@ -9539,6 +9539,7 @@ async function admEliminarAnuncio(id) {
 // ══════════════════════════════════════════════════════════════════
 
 (function() {
+  function _inyectarModalAnuncio() {
   // Inyectar modal en el DOM si no existe
   if (document.getElementById('modal-anuncio-global')) return;
   const ROL_CFG = {
@@ -9605,6 +9606,9 @@ async function admEliminarAnuncio(id) {
   el.addEventListener('click', e => { if (e.target === el) cerrarModalAnuncio(); });
   document.body.appendChild(el);
   window._ROL_CFG_ANUNCIO = ROL_CFG;
+  }
+  if (document.body) { _inyectarModalAnuncio(); }
+  else { document.addEventListener('DOMContentLoaded', _inyectarModalAnuncio); }
 })();
 
 window._anuncioRolActual = 'admin';

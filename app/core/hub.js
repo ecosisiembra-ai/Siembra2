@@ -246,6 +246,7 @@ window.SiembraHub = (function() {
 
     siembraAplicarPlan(esc.plan);
     _cargarStatsLogin();
+    hubActualizarVisibilidadRoles();
     hubActualizarHint();
     hubActualizarBotones();
   }

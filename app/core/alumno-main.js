@@ -1408,7 +1408,8 @@ function initPracticar() {
   if (materias?.length) setTimeout(generarSugerencia, 500);
 }
 
-document.getElementById('modal-ejercicio').addEventListener('click', function(e) {
+const _modalEjercicio = document.getElementById('modal-ejercicio');
+if (_modalEjercicio) _modalEjercicio.addEventListener('click', function(e) {
   if (e.target === this) cerrarModal();
 });
 

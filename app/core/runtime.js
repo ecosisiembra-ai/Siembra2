@@ -20,7 +20,7 @@ window.SiembraRuntime = (function() {
     if (!btn || !wrap) return;
 
     if (shouldAllowDemoEntry()) {
-      wrap.style.display = '';
+      wrap.style.display = 'flex';
       return;
     }
 
