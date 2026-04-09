@@ -12,6 +12,7 @@
 <title>SIEMBRA — Portal Unificado</title>
 <!-- ══ SUPABASE SDK ══ -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="app/core/config.js"></script>
 <script src="app/core/runtime.js"></script>
 <script src="app/core/store.js"></script>
 <script src="app/demo/fixtures.js"></script>
@@ -40,6 +41,8 @@
 <script src="app/portals/portal-admin.js"></script>
 <script src="app/portals/portal-familia.js"></script>
 <script src="app/core/action-engine.js"></script>
+<script src="app/core/boleta-pdf.js"></script>
+<script src="app/core/csv-import.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
 // ── PANEL INSTALADOR: credenciales por escuela ─────────────────────────────
@@ -8546,7 +8549,13 @@ html, body { min-height:100vh; font-family:'Sora',sans-serif; overflow-x:hidden;
       <!-- ── BOLETA NEM ── -->
       <div class="p-page" id="p-page-boleta">
         <div class="p-card" style="margin-bottom:16px;">
-          <div class="p-section-title" style="margin-bottom:4px;">📄 Boleta NEM</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:4px;">
+            <div class="p-section-title">📄 Boleta NEM</div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-outline btn-sm" onclick="padreBoltaImprimir()" style="display:flex;align-items:center;gap:5px;">🖨️ Imprimir</button>
+              <button class="btn btn-primary btn-sm" id="p-blt-btn-pdf" onclick="padreBoltaDescargarPDF()" style="display:flex;align-items:center;gap:5px;">⬇ Descargar PDF</button>
+            </div>
+          </div>
           <div id="p-boleta-selector" style="margin-bottom:12px;display:none;">
             <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--gris-80);display:block;margin-bottom:6px;">Alumno</label>
             <select id="p-boleta-alumno-sel" style="width:100%;max-width:320px;padding:9px 12px;border:1.5px solid var(--gris-20);border-radius:8px;font-family:'Sora',sans-serif;font-size:13px;outline:none;" onchange="padreBoleta()"></select>

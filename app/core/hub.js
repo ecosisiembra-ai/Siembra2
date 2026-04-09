@@ -364,16 +364,33 @@ window.SiembraHub = (function() {
       currentPerfil = null;
       let perfil = null;
 
-      const { data: perfilByAuth } = await window.sb.from('usuarios').select('*').eq('auth_id', currentUser.id).maybeSingle();
-      perfil = perfilByAuth;
+      // ── OPTIMIZACIÓN 1: seleccionar solo columnas necesarias (no SELECT *) ──
+      const PERFIL_COLS = 'id,auth_id,nombre,apellido_p,apellido_m,email,rol,escuela_id,escuela_cct,activo,nivel,num_lista,curp,grado';
+
+      // ── OPTIMIZACIÓN 2: intentar cache de perfil (evita query si ya hay sesión) ──
+      const _emailKey = 'siembra_perfil_' + email.toLowerCase().replace(/[^a-z0-9]/g,'_');
+      try {
+        const cached = JSON.parse(sessionStorage.getItem(_emailKey) || 'null');
+        if (cached?.auth_id === currentUser.id && cached?.rol) {
+          perfil = cached;
+          console.log('[SIEMBRA] perfil desde caché de sesión');
+        }
+      } catch(_) {}
 
       if (!perfil) {
-        const { data: perfilByEmail } = await window.sb.from('usuarios').select('*').eq('email', email.toLowerCase().trim()).maybeSingle();
+        const { data: perfilByAuth } = await window.sb.from('usuarios')
+          .select(PERFIL_COLS).eq('auth_id', currentUser.id).maybeSingle();
+        perfil = perfilByAuth;
+      }
+
+      if (!perfil) {
+        // Fallback por email (primera vez con nuevo auth_id)
+        const { data: perfilByEmail } = await window.sb.from('usuarios')
+          .select(PERFIL_COLS).eq('email', email.toLowerCase().trim()).maybeSingle();
         if (perfilByEmail) {
-          await window.sb.from('usuarios').update({
-            auth_id: currentUser.id,
-            activo: true,
-          }).eq('id', perfilByEmail.id);
+          // Vincular auth_id en background — no bloquear login
+          window.sb.from('usuarios').update({ auth_id: currentUser.id, activo: true })
+            .eq('id', perfilByEmail.id).then(() => {}).catch(() => {});
           perfil = { ...perfilByEmail, auth_id: currentUser.id };
           console.log('[SIEMBRA] auth_id vinculado automaticamente para:', email);
         }
@@ -407,19 +424,32 @@ window.SiembraHub = (function() {
         throw new Error(`❌ Esta cuenta no corresponde al rol "${ROL_LABELS[state.hubRole] || state.hubRole}". Selecciona "${ROL_LABELS[perfil.rol] || perfil.rol}" e intenta de nuevo.`);
       }
 
-      const perteneceAEscuela = await hubPerfilPerteneceAEscuela(perfil);
-      if (!perteneceAEscuela) {
-        await window.sb.auth.signOut();
-        currentUser = null;
-        currentPerfil = null;
-        throw new Error(`❌ Esta cuenta no pertenece a la escuela seleccionada (${window._escuelaCfg?.nombre || window._escuelaCfg?.cct || 'escuela'}).`);
+      // ── OPTIMIZACIÓN 3: skip query a usuario_escuelas si escuela_cct ya coincide ──
+      const ctxCct = window._escuelaCfg?.cct || '';
+      const perfilYaMatchEscuela = !ctxCct
+        || String(perfil.escuela_cct || '').trim() === ctxCct
+        || String(perfil.escuela_id  || '').trim() === String(window._escuelaCfg?.id || '');
+      if (!perfilYaMatchEscuela) {
+        const perteneceAEscuela = await hubPerfilPerteneceAEscuela(perfil);
+        if (!perteneceAEscuela) {
+          await window.sb.auth.signOut();
+          currentUser = null;
+          currentPerfil = null;
+          throw new Error(`❌ Esta cuenta no pertenece a la escuela seleccionada (${window._escuelaCfg?.nombre || window._escuelaCfg?.cct || 'escuela'}).`);
+        }
       }
 
-      try { await window.sb.from('usuarios').update({ ultimo_acceso: new Date().toISOString() }).eq('id', perfil.id); } catch (e) {}
+      // ── OPTIMIZACIÓN 4: ultimo_acceso fire-and-forget (no bloquea login) ──
+      window.sb.from('usuarios').update({ ultimo_acceso: new Date().toISOString() })
+        .eq('id', perfil.id).then(() => {}).catch(() => {});
+
+      // Guardar perfil en caché de sesión para próximos logins
       try {
+        sessionStorage.setItem(_emailKey, JSON.stringify(perfil));
         sessionStorage.setItem('siembra_login_ts', Date.now().toString());
         sessionStorage.setItem('siembra_last_activity', Date.now().toString());
-      } catch (e) {}
+      } catch (_) {}
+
       if (typeof window._resetInactivityTimer === 'function') window._resetInactivityTimer();
       document.getElementById('hub-login').style.display = 'none';
       _abrirPortalPorRol(perfil.rol);

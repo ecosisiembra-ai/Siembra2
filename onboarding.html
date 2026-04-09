@@ -242,9 +242,20 @@ body{background:linear-gradient(135deg,#f0fdf4 0%,#f8fafc 100%);min-height:100vh
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-const SB_URL = 'https://maoioxmnfzzwnuinesyt.supabase.co';
-const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1hb2lveG1uZnp6d251aW5lc3l0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI3Mzk4MTcsImV4cCI6MjA1ODMxNTgxN30.qmETgSN9j9vp3wQB30TSbCyFBLjrBnTBMd6GObOGZOQ';
+// ── Credenciales desde localStorage (instalador) o defaults ──────────────────
+(function() {
+  try {
+    const cfg = JSON.parse(localStorage.getItem('siembra_escuela_cfg') || 'null');
+    window._SB_URL = cfg?.url || 'https://maoioxmnfzzwnuinesyt.supabase.co';
+    window._SB_KEY = cfg?.key || 'sb_publishable_fNwG2bdRTbrV-JCF7of8hA_TDjSXplY';
+  } catch(_) {
+    window._SB_URL = 'https://maoioxmnfzzwnuinesyt.supabase.co';
+    window._SB_KEY = 'sb_publishable_fNwG2bdRTbrV-JCF7of8hA_TDjSXplY';
+  }
+  window._sb = supabase.createClient(window._SB_URL, window._SB_KEY);
+})();
 
 let currentStep = 0;
 const totalSteps = 5;
@@ -303,42 +314,193 @@ function renderReview() {
   ].map(([l,v]) => `<div class="review-item"><span class="review-lbl">${l}</span><span class="review-val">${v}</span></div>`).join('');
 }
 
+// ── Progreso visual durante la creación ──────────────────────────────────────
+function _setProgreso(msg, pct) {
+  const el = document.getElementById('wiz-progreso');
+  if (!el) return;
+  el.innerHTML = `
+    <div style="margin-bottom:12px;font-size:13px;color:#0d5c2f;font-weight:600;">${msg}</div>
+    <div style="height:6px;background:#e2e8f0;border-radius:99px;overflow:hidden;">
+      <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#0d5c2f,#16a34a);border-radius:99px;transition:.4s;"></div>
+    </div>`;
+}
+
 async function crearEscuela() {
   const btn = document.getElementById('btn-next');
   btn.disabled = true; btn.textContent = '⏳ Creando escuela…';
 
-  const payload = {
-    nombre:           val('esc-nombre'),
-    cct:              val('esc-cct'),
-    nivel:            val('esc-nivel'),
-    turno:            val('esc-turno'),
-    municipio:        val('esc-municipio'),
-    email_director:   val('dir-email'),
-    nombre_director:  val('dir-nombre'),
-    ciclo_activo:     val('ciclo-escolar'),
-    plan_suscripcion: 'trial',
-    estado_suscripcion: 'trial',
-    fecha_vencimiento: new Date(Date.now() + 14*24*60*60*1000).toISOString().split('T')[0],
-    creada_at:        new Date().toISOString(),
-  };
-
-  try {
-    const r = await fetch(`${SB_URL}/rest/v1/escuelas`, {
-      method: 'POST',
-      headers: { apikey:SB_KEY, Authorization:`Bearer ${SB_KEY}`, 'Content-Type':'application/json', Prefer:'return=minimal' },
-      body: JSON.stringify(payload),
-    });
-    if (!r.ok) throw new Error('Error al crear escuela en Supabase');
-  } catch(e) {
-    console.warn('Supabase error (continuando con demo):', e.message);
+  // Inyectar barra de progreso en el step-4
+  const reviewEl = document.getElementById('review-contenido');
+  const progresoHtml = `<div id="wiz-progreso" style="margin-top:16px;padding:14px;background:#f0fdf4;border-radius:10px;border:1px solid #86efac;"></div>`;
+  if (reviewEl && !document.getElementById('wiz-progreso')) {
+    reviewEl.insertAdjacentHTML('afterend', progresoHtml);
   }
 
-  document.getElementById('success-nombre').textContent = val('esc-nombre');
-  currentStep = 5;
-  renderWizard();
+  const cct    = val('esc-cct');
+  const ciclo  = val('ciclo-escolar') || '2025-2026';
+  const email  = val('dir-email');
+  const pass   = val('dir-pass');
+  const nombre = val('esc-nombre');
+  const numGrupos = parseInt(document.getElementById('num-grupos').value) || 6;
+  const nivel  = val('esc-nivel');
+
+  try {
+    _setProgreso('Registrando escuela…', 15);
+
+    // 1. Crear registro de escuela
+    const escuelaPayload = {
+      nombre,
+      cct,
+      nivel,
+      nivel_default: nivel === 'ambos' ? 'primaria' : nivel,
+      turno:              val('esc-turno'),
+      municipio:          val('esc-municipio'),
+      email_director:     email,
+      nombre_director:    val('dir-nombre'),
+      plan_suscripcion:   'base',
+      estado_suscripcion: 'trial',
+      fecha_vencimiento:  new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0],
+      creada_at:          new Date().toISOString(),
+    };
+
+    let escuelaId = null;
+    const { data: escData, error: escErr } = await _sb
+      .from('escuelas')
+      .insert(escuelaPayload)
+      .select('id')
+      .single();
+
+    if (escErr) {
+      // Si ya existe (cct duplicado), obtener el id
+      if (escErr.code === '23505') {
+        const { data: ex } = await _sb.from('escuelas').select('id').eq('cct', cct).maybeSingle();
+        escuelaId = ex?.id;
+      } else {
+        throw escErr;
+      }
+    } else {
+      escuelaId = escData?.id;
+    }
+
+    _setProgreso('Creando cuenta del director…', 35);
+
+    // 2. Crear usuario Auth del director
+    let authUserId = null;
+    const { data: authData, error: authErr } = await _sb.auth.signUp({
+      email,
+      password: pass,
+      options: {
+        data: {
+          nombre:       val('dir-nombre').split(' ')[0],
+          apellidos:    val('dir-nombre').split(' ').slice(1).join(' '),
+          rol:          'director',
+          escuela_cct:  cct,
+          escuela_id:   escuelaId,
+        }
+      }
+    });
+
+    if (authErr && !authErr.message?.includes('already registered')) throw authErr;
+    authUserId = authData?.user?.id;
+
+    // 3. Insertar perfil en tabla usuarios
+    if (authUserId) {
+      const nombreParts = val('dir-nombre').split(' ');
+      await _sb.from('usuarios').upsert({
+        auth_id:      authUserId,
+        escuela_id:   escuelaId,
+        escuela_cct:  cct,
+        nombre:       nombreParts[0] || val('dir-nombre'),
+        apellido_p:   nombreParts[1] || '',
+        apellido_m:   nombreParts[2] || '',
+        email,
+        rol:          'director',
+        activo:       true,
+      }, { onConflict: 'auth_id' }).catch(e => console.warn('[onb] upsert usuario:', e.message));
+    }
+
+    _setProgreso('Generando estructura de grupos…', 60);
+
+    // 4. Crear grupos iniciales
+    const gradosPorNivel = {
+      primaria:    ['1°','2°','3°','4°','5°','6°'],
+      secundaria:  ['1°','2°','3°'],
+      ambos:       ['1°P','2°P','3°P','4°P','5°P','6°P','1°S','2°S','3°S'],
+    };
+    const gradosBase = gradosPorNivel[nivel] || gradosPorNivel.secundaria;
+    const secciones = ['A','B','C','D','E','F'];
+    const gruposACrear = [];
+
+    // Distribuir numGrupos entre los grados disponibles
+    let g = 0;
+    for (let s = 0; s < secciones.length && g < numGrupos; s++) {
+      for (let gr = 0; gr < gradosBase.length && g < numGrupos; gr++) {
+        gruposACrear.push({
+          nombre:       `${gradosBase[gr]} ${secciones[s]}`,
+          grado:        gradosBase[gr],
+          seccion:      secciones[s],
+          nivel:        nivel === 'ambos' ? (gr < 6 ? 'primaria' : 'secundaria') : nivel,
+          turno:        val('esc-turno') || 'matutino',
+          ciclo:        ciclo,
+          escuela_id:   escuelaId,
+          escuela_cct:  cct,
+          activo:       true,
+          capacidad:    parseInt(document.getElementById('alumnos-por-grupo').value) || 25,
+        });
+        g++;
+      }
+    }
+
+    if (gruposACrear.length) {
+      await _sb.from('grupos').insert(gruposACrear).catch(e => console.warn('[onb] grupos:', e.message));
+    }
+
+    _setProgreso('Configurando ciclo escolar…', 80);
+
+    // 5. Registrar ciclo activo en config_global
+    await _sb.from('config_global').upsert(
+      { clave: 'ciclo_activo', valor: ciclo },
+      { onConflict: 'clave' }
+    ).catch(() => {});
+
+    // 6. Guardar cfg en localStorage para que index.html la use al abrir
+    try {
+      const cfg = {
+        url:           window._SB_URL,
+        key:           window._SB_KEY,
+        nombre,
+        cct,
+        nivel_default: nivel === 'ambos' ? 'primaria' : nivel,
+        plan:          'base',
+      };
+      localStorage.setItem('siembra_escuela_cfg', JSON.stringify(cfg));
+      localStorage.setItem('siembra_supabase_url', window._SB_URL);
+      localStorage.setItem('siembra_supabase_key', window._SB_KEY);
+    } catch(_) {}
+
+    _setProgreso('¡Escuela lista!', 100);
+
+    // Auto-login del director para ir directo al portal
+    if (authUserId) {
+      await _sb.auth.signInWithPassword({ email, password: pass }).catch(() => {});
+    }
+
+    document.getElementById('success-nombre').textContent = nombre;
+    currentStep = 5;
+    renderWizard();
+
+  } catch(e) {
+    console.error('[onboarding] crearEscuela:', e);
+    _setProgreso(`⚠️ ${e.message || 'Error al crear escuela'}. Intenta de nuevo.`, 0);
+    btn.disabled = false;
+    btn.textContent = '🚀 Crear escuela';
+  }
 }
 
-function irAlPortal() { window.location.href = 'index.html'; }
+function irAlPortal() {
+  // El director ya está logueado (signInWithPassword arriba)
+  window.location.href = 'index.html';
+}
 
 // Init
 window.onload = () => { validarStep0(); };
