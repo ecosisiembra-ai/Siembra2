@@ -1,0 +1,1549 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+  <link rel="manifest" href="manifest-padres.json">
+  <link rel="apple-touch-icon" sizes="192x192" href="icon-192.png">
+  <meta name="theme-color" content="#0a5c2e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="Siembra Padres">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<title>SIEMBRA Familias</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Baloo+2:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="app/core/runtime.js"></script>
+<script src="app/core/padres-auth.js"></script>
+<script src="app/core/padres-main.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<style>
+/* ═══════════════════════════════════════════
+   SIEMBRA FAMILIAS v2 — Modern EdTech 2025
+═══════════════════════════════════════════ */
+:root {
+  --verde:       #15803d;
+  --verde-mid:   #16a34a;
+  --verde-light: #f0fdf4;
+  --verde-glow:  #22c55e;
+  --verde-dark:  #14532d;
+  --amarillo:    #fbbf24;
+  --amarillo-dk: #d97706;
+  --coral:       #ef4444;
+  --coral-light: #fef2f2;
+  --azul:        #2563eb;
+  --azul-light:  #eff6ff;
+  --naranja:     #f97316;
+  --naranja-light:#fff7ed;
+  --pur:         #7c3aed;
+  --pur-light:   #f5f3ff;
+  --gris-100:    #f9fafb;
+  --gris-200:    #f3f4f6;
+  --gris-300:    #e5e7eb;
+  --gris-400:    #9ca3af;
+  --gris-700:    #374151;
+  --gris-900:    #111827;
+  --white:       #ffffff;
+  --radius-sm:   10px;
+  --radius-md:   16px;
+  --radius-lg:   22px;
+  --radius-xl:   32px;
+  --shadow-sm:   0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md:   0 4px 20px rgba(0,0,0,0.09);
+  --shadow-lg:   0 10px 40px rgba(0,0,0,0.13);
+  --font-display:'Baloo 2', sans-serif;
+  --font-body:   'Nunito', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%; width: 100%;
+  font-family: var(--font-body);
+  background: var(--gris-200);
+  color: var(--gris-900);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ─── LOGIN ─── */
+#login-screen {
+  position: fixed; inset: 0;
+  background: linear-gradient(160deg, #064e2f 0%, #15803d 50%, #22c55e 100%);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: max(48px, calc(env(safe-area-inset-top, 0px) + 28px)) 24px 24px;
+  z-index: 100;
+  transition: opacity 0.4s;
+}
+.login-logo {
+  font-family: var(--font-display);
+  font-size: 46px; font-weight: 900;
+  color: var(--white); letter-spacing: -1px;
+  margin: 0 0 4px;
+  line-height: 1.05;
+  text-shadow: 0 2px 12px rgba(0,0,0,0.2);
+}
+.login-logo span { color: var(--amarillo); }
+.login-sub {
+  font-size: 14px; color: rgba(255,255,255,0.8);
+  margin-bottom: 36px; letter-spacing: 0.5px; font-weight: 700;
+}
+.login-card {
+  background: var(--white);
+  border-radius: var(--radius-xl);
+  padding: 32px 28px;
+  width: 100%; max-width: 380px;
+  box-shadow: var(--shadow-lg);
+}
+.login-title {
+  font-family: var(--font-display);
+  font-size: 24px; font-weight: 800;
+  color: var(--gris-900); margin-bottom: 6px;
+}
+.login-hint {
+  font-size: 13px; color: var(--gris-400);
+  margin-bottom: 24px; line-height: 1.5;
+}
+.form-group { margin-bottom: 16px; }
+.form-label {
+  display: block; font-size: 11px; font-weight: 800;
+  color: var(--gris-700); margin-bottom: 7px;
+  text-transform: uppercase; letter-spacing: 0.6px;
+}
+.form-input {
+  width: 100%; padding: 14px 16px;
+  border: 2px solid var(--gris-300);
+  border-radius: var(--radius-md);
+  font-family: var(--font-body); font-size: 15px;
+  color: var(--gris-900); background: var(--gris-100);
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+  outline: none;
+}
+.form-input:focus {
+  border-color: var(--verde-mid);
+  box-shadow: 0 0 0 3px rgba(22,163,74,0.12);
+  background: var(--white);
+}
+.btn-primary {
+  width: 100%; padding: 15px;
+  background: linear-gradient(135deg, var(--verde-dark), var(--verde-mid));
+  color: var(--white);
+  border: none; border-radius: var(--radius-md);
+  font-family: var(--font-display); font-size: 16px; font-weight: 800;
+  cursor: pointer; transition: all 0.2s;
+  margin-top: 8px; box-shadow: 0 4px 14px rgba(21,128,61,0.35);
+}
+.btn-primary:hover { box-shadow: 0 6px 20px rgba(21,128,61,0.45); transform: translateY(-1px); }
+.btn-primary:active { transform: scale(0.98); box-shadow: none; }
+.btn-primary:disabled { background: var(--gris-400); cursor: not-allowed; box-shadow: none; transform: none; }
+.login-error {
+  background: var(--coral-light); color: var(--coral);
+  border-radius: var(--radius-sm); padding: 10px 14px;
+  font-size: 13px; margin-top: 12px; display: none; font-weight: 700;
+}
+.login-switch {
+  text-align: center; margin-top: 16px;
+  font-size: 13px; color: var(--gris-400);
+}
+.login-switch a { color: var(--verde); font-weight: 800; cursor: pointer; text-decoration: none; }
+
+/* ─── APP PRINCIPAL ─── */
+#app {
+  position: fixed; inset: 0;
+  display: none; flex-direction: column;
+  background: var(--gris-200);
+}
+
+/* ─── HEADER ─── */
+.app-header {
+  background: linear-gradient(135deg, #064e2f 0%, #15803d 70%, #16a34a 100%);
+  padding: 16px 16px 20px;
+  flex-shrink: 0;
+  position: relative;
+  box-shadow: 0 4px 20px rgba(6,78,47,0.3);
+}
+.header-top {
+  display: flex; align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.header-brand {
+  font-family: var(--font-display);
+  font-size: 22px; font-weight: 900;
+  color: var(--white); letter-spacing: -0.5px;
+}
+.header-brand span { color: var(--amarillo); }
+.header-actions { display: flex; gap: 8px; align-items: center; }
+.header-btn {
+  width: 38px; height: 38px;
+  background: rgba(255,255,255,0.18);
+  border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 12px;
+  cursor: pointer; color: var(--white);
+  font-size: 17px; display: flex; align-items: center; justify-content: center;
+  transition: background 0.2s;
+  position: relative; backdrop-filter: blur(4px);
+}
+.header-btn:hover { background: rgba(255,255,255,0.28); }
+.notif-badge {
+  position: absolute; top: -3px; right: -3px;
+  width: 17px; height: 17px;
+  background: var(--coral);
+  border-radius: 50%;
+  font-size: 9px; font-weight: 900;
+  color: white;
+  display: flex; align-items: center; justify-content: center;
+  border: 2.5px solid #15803d;
+}
+.header-child-card {
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: var(--radius-md);
+  padding: 11px 14px;
+  display: flex; align-items: center; gap: 12px;
+  backdrop-filter: blur(8px);
+}
+.child-avatar {
+  width: 46px; height: 46px;
+  background: linear-gradient(135deg, var(--amarillo), var(--naranja));
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; flex-shrink: 0;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+}
+.child-info { flex: 1; }
+.child-greeting {
+  font-size: 11px; color: rgba(255,255,255,0.75);
+  font-weight: 700;
+}
+.child-name {
+  font-family: var(--font-display);
+  font-size: 18px; font-weight: 800;
+  color: var(--white); line-height: 1.2;
+}
+.child-group {
+  font-size: 11px; color: rgba(255,255,255,0.65);
+  margin-top: 1px;
+}
+.xp-pill {
+  background: rgba(255,255,255,0.18);
+  border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 20px; padding: 6px 12px;
+  text-align: center; flex-shrink: 0;
+}
+.xp-num {
+  font-family: var(--font-display);
+  font-size: 18px; font-weight: 900;
+  color: var(--amarillo); line-height: 1;
+}
+.xp-lbl { font-size: 9px; color: rgba(255,255,255,0.75); font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; }
+
+/* ─── RACHA BAR ─── */
+.streak-bar {
+  display: flex; gap: 5px; padding: 10px 16px;
+  background: var(--white);
+  border-bottom: 1px solid var(--gris-300);
+  flex-shrink: 0; box-shadow: var(--shadow-sm);
+}
+.streak-day-pill {
+  flex: 1; padding: 7px 2px;
+  border-radius: var(--radius-sm);
+  text-align: center;
+  font-size: 9px; font-weight: 900;
+  text-transform: uppercase; letter-spacing: 0.3px;
+}
+.streak-day-pill.done { background: linear-gradient(135deg, var(--verde), var(--verde-glow)); color: white; }
+.streak-day-pill.today { background: linear-gradient(135deg, var(--amarillo-dk), var(--amarillo)); color: var(--gris-900); }
+.streak-day-pill.miss { background: var(--gris-200); color: var(--gris-400); }
+.streak-label { font-size: 8px; display: block; margin-top: 2px; }
+
+/* ─── SCROLL CONTENT ─── */
+.app-content {
+  flex: 1; overflow-y: auto; overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+}
+
+/* ─── SECTION TABS ─── */
+.section-tabs {
+  display: flex; gap: 0;
+  padding: 0;
+  flex-shrink: 0;
+  position: fixed; bottom: 0; left: 0; right: 0;
+  background: rgba(255,255,255,0.97);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid rgba(0,0,0,0.07);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  z-index: 100;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  box-shadow: 0 -2px 20px rgba(0,0,0,0.08);
+}
+.section-tabs::-webkit-scrollbar { display: none; }
+.tab-pill {
+  flex: 0 0 auto;
+  min-width: 68px;
+  padding: 6px 6px 8px;
+  border-radius: 0;
+  font-size: 9px; font-weight: 800;
+  cursor: pointer; border: none;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+  display: flex; flex-direction: column;
+  align-items: center; gap: 2px;
+  color: #94a3b8;
+  background: none;
+  text-transform: uppercase; letter-spacing: 0.4px;
+  position: relative;
+}
+.tab-pill .tab-icon {
+  font-size: 22px; line-height: 1;
+  transition: transform 0.18s ease;
+  display: flex; align-items: center; justify-content: center;
+  width: 36px; height: 28px; border-radius: 12px;
+}
+.tab-pill.active { color: var(--verde); }
+.tab-pill.active .tab-icon {
+  background: var(--verde-light);
+  transform: scale(1.08);
+}
+.tab-pill:not(.active):active .tab-icon {
+  background: rgba(0,0,0,0.05);
+  transform: scale(0.95);
+}
+.tab-pill:not(.active) { color: #94a3b8; background: none; }
+
+/* ─── CARDS ─── */
+.card {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  box-shadow: var(--shadow-sm);
+  margin: 0 14px 12px;
+  border: 1px solid var(--gris-300);
+  transition: box-shadow 0.2s;
+}
+.card:active { box-shadow: var(--shadow-md); }
+.card-title {
+  font-family: var(--font-display);
+  font-size: 14px; font-weight: 800;
+  color: var(--gris-700); margin-bottom: 14px;
+  text-transform: uppercase; letter-spacing: 0.5px;
+  display: flex; align-items: center; gap: 6px;
+}
+
+/* ─── MATERIA ROW ─── */
+.materia-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--gris-200);
+  cursor: pointer;
+  transition: background 0.15s;
+  border-radius: var(--radius-sm);
+}
+.materia-row:last-child { border-bottom: none; }
+.materia-row:active { background: var(--gris-100); padding-left: 8px; }
+.materia-icon {
+  width: 40px; height: 40px;
+  border-radius: var(--radius-sm);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+}
+.materia-data { flex: 1; }
+.materia-nombre {
+  font-size: 14px; font-weight: 800;
+  color: var(--gris-900); line-height: 1.2;
+}
+.materia-desc { font-size: 11px; color: var(--gris-400); font-weight: 600; }
+.materia-bar-wrap {
+  height: 5px; background: var(--gris-200);
+  border-radius: 4px; margin-top: 5px;
+}
+.materia-bar-fill {
+  height: 5px; border-radius: 4px;
+  transition: width 0.8s ease;
+}
+.materia-cal {
+  font-family: var(--font-display);
+  font-size: 22px; font-weight: 900;
+  min-width: 44px; text-align: right;
+}
+.trend-arrow {
+  font-size: 14px; font-weight: 900;
+  min-width: 20px; text-align: center;
+}
+
+/* ─── AVISO CARD ─── */
+.aviso-card {
+  border-radius: var(--radius-md);
+  padding: 13px 15px;
+  display: flex; gap: 10px;
+  align-items: flex-start;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+  border: 1px solid transparent;
+}
+.aviso-card:active { transform: scale(0.98); }
+.aviso-card:last-child { margin-bottom: 0; }
+.aviso-icon { font-size: 22px; flex-shrink: 0; margin-top: 1px; }
+.aviso-titulo {
+  font-size: 13px; font-weight: 800;
+  color: var(--gris-900); line-height: 1.3;
+}
+.aviso-body {
+  font-size: 12px; color: var(--gris-700);
+  margin-top: 3px; line-height: 1.5;
+}
+.aviso-fecha { font-size: 10px; color: var(--gris-400); margin-top: 4px; font-weight: 700; }
+.aviso-new {
+  width: 9px; height: 9px;
+  background: var(--coral);
+  border-radius: 50%; flex-shrink: 0;
+  margin-top: 5px;
+}
+
+/* ─── PREGUNTA DEL DÍA ─── */
+.pregunta-card {
+  background: linear-gradient(135deg, #064e2f 0%, #15803d 60%, #16a34a 100%);
+  border-radius: var(--radius-lg);
+  padding: 22px 18px;
+  margin: 0 14px 12px;
+  color: var(--white);
+  box-shadow: 0 6px 24px rgba(6,78,47,0.35);
+}
+.pregunta-label {
+  font-size: 10px; font-weight: 900;
+  text-transform: uppercase; letter-spacing: 1.2px;
+  color: var(--amarillo); margin-bottom: 10px;
+  display: flex; align-items: center; gap: 6px;
+}
+.pregunta-texto {
+  font-family: var(--font-display);
+  font-size: 18px; font-weight: 800;
+  line-height: 1.4; margin-bottom: 18px;
+}
+.pregunta-options {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 9px;
+}
+.pregunta-opt {
+  background: rgba(255,255,255,0.15);
+  border: 2px solid rgba(255,255,255,0.25);
+  border-radius: var(--radius-md);
+  padding: 11px 8px;
+  font-family: var(--font-body); font-size: 13px; font-weight: 800;
+  color: var(--white); cursor: pointer;
+  transition: all 0.2s; text-align: center;
+}
+.pregunta-opt:hover { background: rgba(255,255,255,0.25); }
+.pregunta-opt.selected {
+  background: var(--amarillo);
+  border-color: var(--amarillo);
+  color: var(--gris-900);
+}
+.pregunta-opt.correct {
+  background: rgba(34,197,94,0.35);
+  border-color: var(--verde-glow);
+}
+.pregunta-opt.wrong {
+  background: rgba(239,68,68,0.3);
+  border-color: var(--coral);
+}
+.pregunta-feedback {
+  margin-top: 13px; padding: 11px 14px;
+  background: rgba(255,255,255,0.15);
+  border-radius: var(--radius-md);
+  font-size: 13px; line-height: 1.6;
+  display: none; font-weight: 600;
+}
+.xp-earned {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: var(--amarillo); color: var(--gris-900);
+  border-radius: 20px; padding: 5px 12px;
+  font-size: 12px; font-weight: 900;
+  margin-top: 10px;
+}
+
+/* ─── PROGRESO GLOBAL ─── */
+.progreso-circle {
+  display: flex; flex-direction: column;
+  align-items: center; padding: 10px 0 6px;
+}
+.progreso-num {
+  font-family: var(--font-display);
+  font-size: 56px; font-weight: 900;
+  color: var(--verde); line-height: 1;
+  text-shadow: 0 2px 8px rgba(21,128,61,0.2);
+}
+.progreso-lbl {
+  font-size: 12px; color: var(--gris-400);
+  font-weight: 800; margin-top: 3px; text-transform: uppercase; letter-spacing: 0.5px;
+}
+.progreso-desc {
+  font-size: 13px; color: var(--gris-700);
+  text-align: center; margin-top: 10px;
+  padding: 0 16px; line-height: 1.6; font-weight: 600;
+}
+
+/* ─── LOGROS ─── */
+.logros-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+.logro-item { text-align: center; }
+.logro-icon {
+  width: 54px; height: 54px;
+  border-radius: 50%;
+  margin: 0 auto 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 25px;
+}
+.logro-icon.earned {
+  background: linear-gradient(135deg, var(--amarillo-dk), var(--amarillo));
+  box-shadow: 0 4px 12px rgba(251,191,36,0.4);
+}
+.logro-icon.locked { background: var(--gris-200); filter: grayscale(1); opacity: 0.45; }
+.logro-name {
+  font-size: 10px; font-weight: 800;
+  color: var(--gris-700); line-height: 1.2;
+}
+
+/* ─── GALERÍA ─── */
+.galeria-scroll {
+  display: flex; gap: 12px;
+  overflow-x: auto; padding: 0 14px 4px;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+.galeria-scroll::-webkit-scrollbar { display: none; }
+.galeria-item {
+  flex-shrink: 0; width: 140px;
+  scroll-snap-align: start;
+}
+.galeria-img {
+  width: 140px; height: 100px;
+  border-radius: var(--radius-md);
+  object-fit: cover;
+  background: var(--gris-200);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 32px;
+}
+.galeria-caption {
+  font-size: 11px; font-weight: 700;
+  color: var(--gris-700); margin-top: 5px;
+  line-height: 1.3;
+}
+
+/* ─── EMPTY STATE ─── */
+.empty-state {
+  text-align: center; padding: 36px 20px;
+  color: var(--gris-400);
+}
+.empty-icon { font-size: 44px; margin-bottom: 10px; }
+.empty-text { font-size: 13px; font-weight: 700; line-height: 1.5; }
+
+/* ─── AI CARD ─── */
+.ai-card {
+  background: linear-gradient(135deg, #312e81, #4c1d95);
+  border-radius: var(--radius-lg);
+  padding: 16px 18px;
+  margin: 0 14px 12px;
+  color: white;
+  box-shadow: 0 6px 24px rgba(76,29,149,0.3);
+}
+.ai-header {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 10px;
+}
+.ai-dot {
+  width: 8px; height: 8px;
+  background: #a78bfa;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.8); }
+}
+.ai-label {
+  font-size: 11px; font-weight: 900;
+  color: #c4b5fd; text-transform: uppercase; letter-spacing: 0.6px;
+}
+.ai-text {
+  font-size: 13px; color: rgba(255,255,255,0.9);
+  line-height: 1.6; font-weight: 600;
+}
+.ai-loading {
+  display: flex; gap: 4px; align-items: center;
+}
+.ai-dot-anim {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #a78bfa; animation: bounce 1.2s infinite;
+}
+.ai-dot-anim:nth-child(2) { animation-delay: 0.2s; }
+.ai-dot-anim:nth-child(3) { animation-delay: 0.4s; }
+@keyframes bounce {
+  0%, 80%, 100% { transform: scale(1); opacity: 0.5; }
+  40% { transform: scale(1.3); opacity: 1; }
+}
+
+/* ─── BOTTOM NAV ─── */
+.bottom-nav {
+  background: rgba(255,255,255,0.97);
+  border-top: 1px solid var(--gris-300);
+  display: flex;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  flex-shrink: 0;
+  backdrop-filter: blur(16px);
+  box-shadow: 0 -2px 16px rgba(0,0,0,0.07);
+}
+.nav-item {
+  flex: 1; padding: 10px 4px;
+  display: flex; flex-direction: column;
+  align-items: center; gap: 3px;
+  cursor: pointer; border: none; background: none;
+  transition: color 0.2s;
+  color: var(--gris-400);
+  font-family: var(--font-body);
+}
+.nav-item.active { color: var(--verde); }
+.nav-icon { font-size: 22px; line-height: 1; }
+.nav-label { font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.4px; }
+
+/* ─── VIEWS ─── */
+.view { display: none; }
+.view.active { display: block; }
+
+/* ─── MODAL ─── */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 200; display: none;
+  align-items: flex-end; justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+.modal-sheet {
+  background: var(--white);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  padding: 20px 20px 44px;
+  width: 100%; max-height: 85vh;
+  overflow-y: auto;
+  animation: slideUp 0.3s cubic-bezier(0.34,1.56,0.64,1);
+  box-shadow: var(--shadow-lg);
+}
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+.modal-handle {
+  width: 40px; height: 5px;
+  background: var(--gris-300);
+  border-radius: 3px;
+  margin: 0 auto 18px;
+}
+.modal-title {
+  font-family: var(--font-display);
+  font-size: 22px; font-weight: 900;
+  margin-bottom: 18px; color: var(--gris-900);
+}
+
+/* ─── TOAST ─── */
+.toast {
+  position: fixed; top: 20px; left: 50%;
+  transform: translateX(-50%) translateY(-90px);
+  background: var(--gris-900); color: white;
+  border-radius: var(--radius-md); padding: 13px 22px;
+  font-size: 13px; font-weight: 800;
+  z-index: 999; transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+  white-space: nowrap; box-shadow: var(--shadow-lg);
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+
+/* ─── LOADING ─── */
+.loading-screen {
+  position: fixed; inset: 0;
+  background: linear-gradient(160deg, #064e2f, #15803d, #22c55e);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  z-index: 50;
+  transition: opacity 0.4s;
+}
+.loading-logo {
+  font-family: var(--font-display);
+  font-size: 52px; font-weight: 900;
+  color: white; margin-bottom: 4px;
+  text-shadow: 0 2px 16px rgba(0,0,0,0.2);
+}
+.loading-logo span { color: var(--amarillo); }
+.loading-sub { font-size: 14px; color: rgba(255,255,255,0.8); margin-bottom: 36px; font-weight: 700; }
+.loading-bar-wrap {
+  width: 160px; height: 5px;
+  background: rgba(255,255,255,0.25);
+  border-radius: 4px;
+}
+.loading-bar-fill {
+  height: 5px; background: var(--amarillo);
+  border-radius: 4px; width: 0%;
+  animation: loadBar 1.8s ease forwards;
+  box-shadow: 0 0 10px rgba(251,191,36,0.6);
+}
+@keyframes loadBar { to { width: 100%; } }
+
+/* ─── SELECTOR DE HIJO ─── */
+.hijo-selector {
+  display: flex; gap: 8px;
+  overflow-x: auto; padding: 10px 14px;
+  background: var(--white);
+  border-bottom: 1px solid var(--gris-300);
+  flex-shrink: 0; box-shadow: var(--shadow-sm);
+}
+.hijo-selector::-webkit-scrollbar { display: none; }
+.hijo-chip {
+  flex-shrink: 0; padding: 8px 16px;
+  border-radius: 20px; border: 2px solid var(--gris-300);
+  background: var(--gris-100); cursor: pointer;
+  font-size: 13px; font-weight: 800;
+  color: var(--gris-700); transition: all 0.2s;
+  white-space: nowrap;
+}
+.hijo-chip.active {
+  border-color: var(--verde);
+  background: var(--verde-light);
+  color: var(--verde);
+  box-shadow: 0 2px 8px rgba(22,163,74,0.2);
+}
+
+/* ─── SCROLL PAD ─── */
+.scroll-pad { height: 16px; }
+.scroll-pad-bottom { height: 24px; }
+
+/* ══════════════════════════════════════════
+   DESKTOP LAYOUT — ≥768px
+   Convierte la app móvil en una app web
+   de escritorio con sidebar lateral
+══════════════════════════════════════════ */
+@media (min-width: 768px) {
+  /* ── Desbloquear scroll del body ── */
+  html, body {
+    overflow: auto;
+    background: linear-gradient(135deg, #071e12 0%, #0f172a 100%);
+    min-height: 100vh;
+  }
+
+  /* ── Login: permitir scroll interno en desktop sin romper el overlay ── */
+  #login-screen {
+    overflow-y: auto;
+    align-items: center;
+    justify-content: flex-start;
+    padding-top: max(56px, calc(env(safe-area-inset-top, 0px) + 32px));
+    padding-bottom: 40px;
+  }
+
+  .login-logo,
+  .login-sub,
+  .login-card {
+    width: min(100%, 420px);
+  }
+
+  .login-logo,
+  .login-sub {
+    text-align: center;
+  }
+
+  /* ── App: CSS Grid con sidebar + columna principal ── */
+  #app {
+    position: relative !important;
+    display: grid !important;
+    grid-template-columns: 78px 1fr !important;
+    grid-template-rows: auto auto auto 1fr !important;
+    grid-template-areas:
+      "sidebar header"
+      "sidebar hijo"
+      "sidebar streak"
+      "sidebar content" !important;
+    max-width: 1240px;
+    min-height: 100vh;
+    margin: 0 auto;
+    background: #f1f5f9;
+    box-shadow: 0 0 80px rgba(0,0,0,0.5);
+  }
+
+  /* ── Asignación de áreas ── */
+  .app-header    { grid-area: header; }
+  .hijo-selector { grid-area: hijo; }
+  .streak-bar    { grid-area: streak; }
+  .section-tabs  { grid-area: sidebar; }
+  .app-content   { grid-area: content; overflow-y: auto !important; padding-bottom: 48px !important; }
+
+  /* ── Sidebar izquierdo ── */
+  .section-tabs {
+    position: sticky !important;
+    top: 0;
+    height: 100vh;
+    width: 78px;
+    flex-direction: column !important;
+    justify-content: flex-start !important;
+    padding: 18px 0 16px !important;
+    background: linear-gradient(180deg, #064e2f 0%, #0c2318 100%) !important;
+    border-top: none !important;
+    border-right: 1px solid rgba(255,255,255,0.06);
+    box-shadow: 4px 0 28px rgba(0,0,0,0.35) !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    gap: 0 !important;
+    z-index: 80;
+    bottom: auto !important;
+    left: auto !important;
+    right: auto !important;
+  }
+
+  /* Logo en sidebar */
+  .section-tabs::before {
+    content: '🌱';
+    display: flex;
+    align-items: center; justify-content: center;
+    width: 46px; height: 46px;
+    background: rgba(255,255,255,0.12);
+    border-radius: 14px;
+    font-size: 24px;
+    margin: 0 auto 14px;
+    border: 1px solid rgba(255,255,255,0.15);
+    flex-shrink: 0;
+  }
+
+  .tab-pill {
+    flex: 0 0 auto !important;
+    min-width: 78px !important;
+    padding: 9px 4px !important;
+    border-radius: 0 !important;
+    color: rgba(255,255,255,0.4) !important;
+    margin: 0 !important;
+    border-left: 3px solid transparent;
+    transition: all 0.15s !important;
+  }
+  .tab-pill.active {
+    color: white !important;
+    background: rgba(255,255,255,0.1) !important;
+    border-left: 3px solid #22c55e !important;
+  }
+  .tab-pill.active .tab-icon { background: transparent !important; transform: scale(1.1) !important; }
+  .tab-pill:hover:not(.active) { color: rgba(255,255,255,0.7) !important; background: rgba(255,255,255,0.05) !important; }
+  .tab-pill .tab-icon { width: 34px !important; height: 28px !important; border-radius: 8px !important; font-size: 18px !important; }
+  /* Ocultar texto en sidebar angosto (78px) — solo mostrar ícono */
+  .tab-pill { font-size: 0 !important; }
+  .tab-pill .tab-icon { font-size: 18px !important; }
+
+  /* ── Header ── */
+  .app-header { padding: 16px 32px 20px !important; }
+  .header-top { margin-bottom: 12px !important; }
+
+  /* ── Selectores y streak ── */
+  .hijo-selector { padding: 12px 32px !important; }
+  .streak-bar    { padding: 10px 32px !important; }
+
+  /* ── Cards ── */
+  .card         { margin: 0 32px 16px !important; padding: 22px 26px !important; border-radius: 20px !important; }
+  .pregunta-card { margin: 0 32px 16px !important; border-radius: 20px !important; }
+  .ai-card      { margin: 0 32px 16px !important; border-radius: 20px !important; }
+  .galeria-scroll { padding: 0 32px 8px !important; }
+  .logros-grid  { grid-template-columns: repeat(6,1fr) !important; }
+
+  /* Grid 2 columnas para materias */
+  #resumen-materias-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 12px;
+  }
+}
+
+/* ── Sidebar con labels a partir de 1040px ── */
+@media (min-width: 1040px) {
+  #app { grid-template-columns: 200px 1fr !important; }
+  .section-tabs { width: 200px !important; }
+  .tab-pill {
+    flex-direction: row !important;
+    gap: 10px !important;
+    justify-content: flex-start !important;
+    padding: 11px 18px 11px 14px !important;
+    min-width: 200px !important;
+    font-size: 11px !important;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .tab-pill .tab-icon { width: 30px !important; height: 26px !important; flex-shrink: 0; }
+  .tab-pill { font-size: 11px !important; }  /* Restaurar texto en sidebar ancho */
+  .section-tabs::before { width: calc(100% - 28px); margin: 0 14px 16px; border-radius: 10px; font-size: 20px; height: 42px; }
+}
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div class="loading-screen" id="loading-screen">
+  <div class="loading-logo">SIEM<span>BRA</span></div>
+  <div class="loading-sub">Familias</div>
+  <div class="loading-bar-wrap"><div class="loading-bar-fill"></div></div>
+</div>
+
+<!-- LOGIN -->
+<div id="login-screen" style="display:none">
+  <div class="login-logo">SIEM<span>BRA</span></div>
+  <div class="login-sub">Portal para familias</div>
+  <div class="login-card">
+    <div class="login-title">¡Hola! 👋</div>
+    <div class="login-hint">Entra con el correo que te dio la escuela</div>
+    <div class="form-group">
+      <label class="form-label">Correo electrónico</label>
+      <input class="form-input" type="email" id="login-email" placeholder="tu@correo.com" autocomplete="email">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Contraseña</label>
+      <input class="form-input" type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button class="btn-primary" id="btn-login" onclick="doLogin()">Entrar →</button>
+    <div class="login-error" id="login-error"></div>
+    <div id="padres-demo-wrap" style="display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;gap:10px;margin:16px 0 4px">
+      <div style="flex:1;height:1px;background:var(--gris-200)"></div>
+      <span style="font-size:11px;color:var(--gris-400);font-weight:700">O PRUEBA SIN CUENTA</span>
+      <div style="flex:1;height:1px;background:var(--gris-200)"></div>
+    </div>
+    <button onclick="entrarDemo()" style="width:100%;padding:13px;background:var(--amarillo);color:var(--gris-900);border:none;border-radius:var(--radius-md);font-family:var(--font-display);font-size:15px;font-weight:800;cursor:pointer;margin-top:4px;transition:opacity 0.2s" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+      🧪 Entrar en modo demo
+    </button>
+    <div style="text-align:center;font-size:11px;color:var(--gris-400);margin-top:6px">Datos de prueba, sin afectar la base de datos</div>
+    </div>
+    <div class="login-switch" style="margin-top:12px">¿Es tu primera vez? <a onclick="showRegister()">Regístrate aquí</a></div>
+  </div>
+</div>
+
+<!-- REGISTER MODAL -->
+<div class="modal-overlay" id="modal-register">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Crear cuenta familiar</div>
+    <div class="form-group">
+      <label class="form-label">Tu nombre</label>
+      <input class="form-input" type="text" id="reg-nombre" placeholder="Ej. Nombre de la familia">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Correo electrónico</label>
+      <input class="form-input" type="email" id="reg-email" placeholder="tu@correo.com">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Contraseña</label>
+      <input class="form-input" type="password" id="reg-pass" placeholder="Mínimo 6 caracteres">
+    </div>
+    <div class="form-group" id="reg-codigo-wrap">
+      <label class="form-label">Código de vinculación del alumno</label>
+      <input class="form-input" type="text" id="reg-codigo" placeholder="Ej. ALU-2024-001" style="text-transform:uppercase">
+      <div style="font-size:11px;color:var(--gris-400);margin-top:4px">La escuela te dio este código en la inscripción</div>
+    </div>
+    <button class="btn-primary" id="btn-register" onclick="doRegister()">Crear cuenta →</button>
+    <div class="login-error" id="reg-error"></div>
+    <div style="display:flex;align-items:center;gap:10px;margin:14px 0 4px">
+      <div style="flex:1;height:1px;background:var(--gris-200)"></div>
+      <span style="font-size:11px;color:var(--gris-400);font-weight:700">SIN CÓDIGO</span>
+      <div style="flex:1;height:1px;background:var(--gris-200)"></div>
+    </div>
+    <button onclick="showSolicitudAcceso()" style="width:100%;padding:12px;background:var(--gris-100,#f1f5f9);color:var(--gris-700,#374151);border:1.5px solid var(--gris-200);border-radius:var(--radius-md);font-family:var(--font-display);font-size:14px;font-weight:700;cursor:pointer;">
+      📥 Solicitar acceso a la escuela
+    </button>
+    <div style="font-size:11px;color:var(--gris-400);text-align:center;margin-top:5px">El admin aprobará tu acceso en breve</div>
+    <div style="margin-top:12px;text-align:center">
+      <a style="font-size:13px;color:var(--verde);font-weight:700;cursor:pointer" onclick="closeModal('modal-register')">Ya tengo cuenta</a>
+    </div>
+  </div>
+</div>
+
+<!-- SOLICITUD DE ACCESO DIRECTO -->
+<div class="modal-overlay" id="modal-solicitud-acceso">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">📥 Solicitar acceso</div>
+    <div style="font-size:13px;color:var(--gris-500,#64748b);margin-bottom:16px;">Completa tus datos y el administrador de la escuela aprobará tu acceso.</div>
+    <div class="form-group">
+      <label class="form-label">Nombre</label>
+      <input class="form-input" type="text" id="sol-nombre" placeholder="Tu nombre">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Apellido</label>
+      <input class="form-input" type="text" id="sol-apellido" placeholder="Tu apellido">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Correo electrónico</label>
+      <input class="form-input" type="email" id="sol-email" placeholder="tu@correo.com">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Teléfono (opcional)</label>
+      <input class="form-input" type="tel" id="sol-tel" placeholder="55 1234 5678">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Nombre del alumno (tu hijo/a)</label>
+      <input class="form-input" type="text" id="sol-hijo" placeholder="Nombre del alumno">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Clave del plantel (CCT) o nombre de la escuela</label>
+      <input class="form-input" type="text" id="sol-escuela" placeholder="Ej. 15EPR0001A o nombre del plantel">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Mensaje (opcional)</label>
+      <textarea class="form-input" id="sol-mensaje" placeholder="Ej. Mi hijo está en 4°A" rows="2" style="resize:vertical;"></textarea>
+    </div>
+    <button class="btn-primary" id="btn-solicitud" onclick="doSolicitudAcceso()">Enviar solicitud →</button>
+    <div class="login-error" id="sol-error"></div>
+    <div style="margin-top:12px;text-align:center">
+      <a style="font-size:13px;color:var(--verde);font-weight:700;cursor:pointer" onclick="closeModal('modal-solicitud-acceso');openModal('modal-register');">← Volver</a>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <!-- HEADER -->
+  <div class="app-header">
+    <div class="header-top">
+      <div class="header-brand">SIEM<span>BRA</span></div>
+      <div class="header-actions">
+        <button class="header-btn" onclick="showNotifsModal()" title="Avisos">
+          🔔
+          <span class="notif-badge" id="notif-badge" style="display:none">0</span>
+        </button>
+        <button class="header-btn" onclick="doLogout()" title="Salir" aria-label="Cerrar sesión">⎋</button>
+      </div>
+    </div>
+    <div class="header-child-card">
+      <div class="child-avatar" id="child-avatar">👦</div>
+      <div class="child-info">
+        <div class="child-greeting" id="child-greeting">Hola,</div>
+        <div class="child-name" id="child-name">Cargando...</div>
+        <div class="child-group" id="child-group">—</div>
+      </div>
+      <div class="xp-pill">
+        <div class="xp-num" id="header-xp">—</div>
+        <div class="xp-lbl">PUNTOS</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SELECTOR HIJOS (si hay más de uno) -->
+  <div class="hijo-selector" id="hijo-selector" style="display:none"></div>
+
+  <!-- RACHA ASISTENCIA -->
+  <div class="streak-bar" id="streak-bar">
+    <!-- renderizado por JS -->
+  </div>
+
+  <!-- BOTTOM NAV TABS -->
+  <div class="section-tabs" id="section-tabs">
+    <button class="tab-pill active" onclick="switchTab('inicio')"><span class="tab-icon">🏠</span>Inicio</button>
+    <button class="tab-pill" onclick="switchTab('materias')"><span class="tab-icon">📚</span>Materias</button>
+    <button class="tab-pill" onclick="switchTab('lectura')"><span class="tab-icon">📖</span>Lectura</button>
+    <button class="tab-pill" onclick="switchTab('avisos')"><span class="tab-icon">📋</span>Avisos</button>
+    <button class="tab-pill" onclick="switchTab('recompensas')"><span class="tab-icon">🎁</span>Premios</button>
+    <button class="tab-pill" onclick="switchTab('escuela')"><span class="tab-icon">📸</span>Escuela</button>
+    <button class="tab-pill" onclick="switchTab('pagos')"><span class="tab-icon">💳</span>Pagos</button>
+    <button class="tab-pill" id="tab-tutor" onclick="switchTab('tutor')"><span class="tab-icon">💬</span>Tutor<span id="tutor-badge" style="display:none;background:#f43f5e;color:white;border-radius:50%;font-size:9px;width:16px;height:16px;text-align:center;line-height:16px;margin-left:2px;font-weight:900;"></span></button>
+    <button class="tab-pill" onclick="switchTab('examenes')"><span class="tab-icon">📅</span>Exámenes</button>
+    <button class="tab-pill" onclick="switchTab('boleta')"><span class="tab-icon">📄</span>Boleta</button>
+  </div>
+
+  <!-- CONTENIDO SCROLLEABLE -->
+  <div class="app-content" id="app-content">
+
+    <!-- ─── VISTA: INICIO ─── -->
+    <div class="view active" id="view-inicio">
+      <div class="scroll-pad"></div>
+
+      <!-- Resumen rápido materias -->
+      <div class="card" id="card-resumen-materias">
+        <div class="card-title">📊 Cómo va esta semana</div>
+        <div id="resumen-materias-list">
+          <div class="empty-state"><div class="empty-icon">⏳</div><div class="empty-text">Cargando materias...</div></div>
+        </div>
+      </div>
+
+      <!-- Actividades con evidencia pendiente -->
+      <div class="card" id="card-evidencias-pendientes" style="display:none;">
+        <div class="card-title">📸 Tareas que requieren evidencia</div>
+        <div id="evidencias-pendientes-list"></div>
+      </div>
+
+      <!-- AI Sugerencia -->
+      <div class="ai-card" id="ai-card">
+        <div class="ai-header">
+          <div class="ai-dot"></div>
+          <div class="ai-label">Sugerencia personalizada</div>
+        </div>
+        <div class="ai-text" id="ai-text">
+          <div class="ai-loading">
+            <div class="ai-dot-anim"></div>
+            <div class="ai-dot-anim"></div>
+            <div class="ai-dot-anim"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Último informe pedagógico del alumno -->
+      <div class="ai-card" id="card-analisis-alumno" style="display:none;">
+        <div class="ai-header">
+          <div class="ai-dot" style="background:#7c3aed;"></div>
+          <div class="ai-label">Informe de progreso de tu hij@</div>
+        </div>
+        <div id="analisis-alumno-texto" class="ai-text" style="font-size:13px;line-height:1.7;"></div>
+        <div id="analisis-alumno-fecha" style="font-size:10px;color:var(--gris-400);margin-top:6px;"></div>
+      </div>
+
+      <!-- Pregunta del día -->
+      <div class="pregunta-card" id="pregunta-card">
+        <div class="pregunta-label">✨ Pregunta del día</div>
+        <div class="pregunta-texto" id="pregunta-texto">Cargando...</div>
+        <div class="pregunta-options" id="pregunta-options"></div>
+        <div class="pregunta-feedback" id="pregunta-feedback"></div>
+      </div>
+
+      <!-- Logros -->
+      <div class="card">
+        <div class="card-title">🏆 Logros recientes</div>
+        <div class="logros-grid" id="logros-grid">
+          <!-- renderizado por JS -->
+        </div>
+      </div>
+
+      <div class="scroll-pad-bottom"></div>
+    </div>
+
+    <!-- ─── VISTA: MATERIAS ─── -->
+    <div class="view" id="view-materias">
+      <div class="scroll-pad"></div>
+
+      <!-- Promedio general -->
+      <div class="card">
+        <div class="card-title">📈 Promedio general</div>
+        <div class="progreso-circle">
+          <div class="progreso-num" id="promedio-general">—</div>
+          <div class="progreso-lbl">PROMEDIO ACTUAL</div>
+          <div class="progreso-desc" id="promedio-desc">Calculando el promedio de todas las materias...</div>
+        </div>
+        <div style="margin-top:12px;height:160px;position:relative">
+          <canvas id="chart-radar"></canvas>
+        </div>
+      </div>
+
+      <!-- Lista materias detalle -->
+      <div class="card">
+        <div class="card-title">📚 Por materia</div>
+        <div id="materias-detail-list">
+          <div class="empty-state"><div class="empty-icon">⏳</div><div class="empty-text">Cargando...</div></div>
+        </div>
+      </div>
+
+      <div class="scroll-pad-bottom"></div>
+    </div>
+
+    <!-- ─── VISTA: LECTURA ─── -->
+    <div class="view" id="view-lectura">
+      <div class="scroll-pad"></div>
+      <div style="padding:0 16px;">
+
+        <!-- Progreso general de lectura -->
+        <div style="background:linear-gradient(135deg,#0369a1,#0ea5e9);border-radius:16px;padding:18px;margin-bottom:16px;color:white;">
+          <div style="font-size:11px;font-weight:800;opacity:.7;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">📖 Progreso de lectura</div>
+          <div id="lectura-stats" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;text-align:center;">
+            <div><div style="font-size:28px;font-weight:900;" id="lect-terminados">—</div><div style="font-size:10px;opacity:.7;">Libros terminados</div></div>
+            <div><div style="font-size:28px;font-weight:900;" id="lect-leyendo">—</div><div style="font-size:10px;opacity:.7;">Leyendo ahora</div></div>
+            <div><div style="font-size:28px;font-weight:900;" id="lect-xp">—</div><div style="font-size:10px;opacity:.7;">XP lectora</div></div>
+          </div>
+        </div>
+
+        <!-- Lista de libros con progreso -->
+        <div style="font-size:13px;font-weight:700;color:var(--gris-700);margin-bottom:10px;">Libros de tu hij@</div>
+        <div id="lectura-libros-lista" style="margin-bottom:16px;">
+          <div style="text-align:center;padding:24px;color:var(--gris-400);font-size:13px;">Cargando libros…</div>
+        </div>
+
+        <!-- Últimos quiz completados -->
+        <div style="font-size:13px;font-weight:700;color:var(--gris-700);margin-bottom:10px;">🧠 Últimos quiz completados</div>
+        <div id="lectura-quiz-lista" style="margin-bottom:16px;">
+          <div style="text-align:center;padding:16px;color:var(--gris-400);font-size:13px;">Cargando resultados…</div>
+        </div>
+
+        <!-- Informe de lectura -->
+        <div class="ai-card" style="margin-bottom:16px;">
+          <div class="ai-header"><div class="ai-dot"></div><div class="ai-label">Informe de lectura</div></div>
+          <div id="lectura-ia-texto" class="ai-text">
+            <div class="ai-loading"><div class="ai-dot-anim"></div><div class="ai-dot-anim"></div><div class="ai-dot-anim"></div></div>
+          </div>
+          <button onclick="cargarLecturaIA()" style="margin-top:10px;padding:6px 14px;background:var(--azul-light,#e0f2fe);border:none;border-radius:8px;font-family:inherit;font-size:12px;font-weight:700;color:#0369a1;cursor:pointer;">🔄 Actualizar análisis</button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ─── VISTA: AVISOS ─── -->
+    <div class="view" id="view-avisos">
+      <div class="scroll-pad"></div>
+
+      <!-- Citatorios -->
+      <div class="card" id="card-citatorios">
+        <div class="card-title">📋 Citatorios y reportes</div>
+        <div id="citatorios-list">
+          <div class="empty-state"><div class="empty-icon">✅</div><div class="empty-text">Sin citatorios pendientes</div></div>
+        </div>
+      </div>
+
+      <!-- Avisos generales -->
+      <div class="card">
+        <div class="card-title">📢 Avisos de la escuela</div>
+        <div id="avisos-list">
+          <div class="empty-state"><div class="empty-icon">⏳</div><div class="empty-text">Cargando avisos...</div></div>
+        </div>
+      </div>
+
+      <div class="scroll-pad-bottom"></div>
+    </div>
+
+    <!-- ─── VISTA: RECOMPENSAS ─── -->
+    <div class="view" id="view-recompensas">
+      <div class="scroll-pad"></div>
+      <div style="background:linear-gradient(135deg,#1a6b4a,#1D9E75);border-radius:var(--radius-lg);margin:0 16px 12px;padding:20px;color:white">
+        <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,0.7);margin-bottom:4px">Tus puntos disponibles</div>
+        <div style="display:flex;align-items:flex-end;gap:8px;margin-bottom:12px">
+          <div style="font-family:var(--font-display);font-size:52px;font-weight:900;color:var(--amarillo);line-height:1" id="puntos-display">—</div>
+          <div style="font-size:14px;font-weight:700;padding-bottom:10px;opacity:0.85">pts</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <div style="flex:1;background:rgba(255,255,255,0.15);border-radius:var(--radius-sm);padding:10px;text-align:center">
+            <div style="font-family:var(--font-display);font-size:20px;font-weight:800;color:var(--amarillo)" id="puntos-racha">—</div>
+            <div style="font-size:10px;opacity:0.75;font-weight:700">RACHA DÍAS</div>
+          </div>
+          <div style="flex:1;background:rgba(255,255,255,0.15);border-radius:var(--radius-sm);padding:10px;text-align:center">
+            <div style="font-family:var(--font-display);font-size:20px;font-weight:800;color:var(--amarillo)" id="puntos-nivel">—</div>
+            <div style="font-size:10px;opacity:0.75;font-weight:700">NIVEL</div>
+          </div>
+          <div style="flex:1;background:rgba(255,255,255,0.15);border-radius:var(--radius-sm);padding:10px;text-align:center">
+            <div style="font-family:var(--font-display);font-size:20px;font-weight:800;color:var(--amarillo)" id="puntos-canjeados">—</div>
+            <div style="font-size:10px;opacity:0.75;font-weight:700">CANJEADOS</div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">📸 Sube evidencia de tarea o proyecto</div>
+        <div style="font-size:12px;color:var(--gris-400);margin-bottom:12px">Documenta el trabajo de tu hij@ y gana <strong style="color:var(--verde-mid)">+15 pts</strong> tú y <strong style="color:var(--amarillo-dk)">+20 XP</strong> tu hij@</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <select id="evidencia-tipo" style="padding:10px 12px;border:2px solid var(--gris-200);border-radius:var(--radius-sm);font-family:var(--font-body);font-size:14px;background:var(--gris-100);color:var(--gris-900)">
+            <option value="tarea">📝 Tarea</option>
+            <option value="proyecto">🔬 Proyecto</option>
+            <option value="examen">📋 Examen</option>
+            <option value="otra">⭐ Otra actividad</option>
+          </select>
+          <input id="evidencia-titulo" type="text" placeholder="¿Qué es? Ej: Tarea de Matemáticas pág. 45" style="padding:10px 12px;border:2px solid var(--gris-200);border-radius:var(--radius-sm);font-family:var(--font-body);font-size:14px;background:var(--gris-100);color:var(--gris-900)">
+          <div id="evidencia-preview" style="display:none;border-radius:var(--radius-md);overflow:hidden;max-height:200px;background:var(--gris-200)">
+            <img id="evidencia-img" style="width:100%;object-fit:cover" alt="preview">
+          </div>
+          <label style="display:flex;align-items:center;gap:10px;padding:12px;border:2px dashed var(--gris-200);border-radius:var(--radius-md);cursor:pointer;background:var(--gris-100)" id="evidencia-label">
+            <span style="font-size:24px">📷</span>
+            <div>
+              <div style="font-size:13px;font-weight:700;color:var(--gris-700)">Toca para elegir foto</div>
+              <div style="font-size:11px;color:var(--gris-400)">JPG, PNG o PDF · máx 5MB</div>
+            </div>
+            <input type="file" id="evidencia-file" accept="image/*,application/pdf" style="display:none" onchange="previewEvidencia(this)">
+          </label>
+          <button onclick="subirEvidencia()" id="btn-subir-evidencia" style="padding:13px;background:var(--verde);color:white;border:none;border-radius:var(--radius-md);font-family:var(--font-display);font-size:15px;font-weight:800;cursor:pointer">Subir evidencia → +15 pts</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">🏆 Mis logros</div>
+        <div class="logros-grid" id="logros-padre-grid">
+          <div class="empty-state"><div class="empty-icon">⏳</div><div class="empty-text">Cargando...</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">🛍 Canjea tus puntos</div>
+        <div style="font-size:12px;color:var(--gris-400);margin-bottom:12px">Tus puntos tienen valor real en estos comercios</div>
+        <div id="tienda-list"><div class="empty-state"><div class="empty-icon">⏳</div><div class="empty-text">Cargando tienda...</div></div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">🧾 Mis canjes</div>
+        <div id="canjes-list"><div class="empty-state"><div class="empty-icon">🎁</div><div class="empty-text">Sin canjes aún</div></div></div>
+      </div>
+      <div class="scroll-pad-bottom"></div>
+    </div>
+
+    <!-- ─── VISTA: ESCUELA ─── -->
+    <div class="view" id="view-escuela">
+      <div class="scroll-pad"></div>
+
+      <!-- Próximos eventos -->
+      <div class="card">
+        <div class="card-title">📅 Próximos eventos</div>
+        <div id="eventos-list">
+          <div class="empty-state"><div class="empty-icon">🗓</div><div class="empty-text">Sin eventos próximos</div></div>
+        </div>
+      </div>
+
+      <!-- Galería -->
+      <div style="margin-bottom:12px">
+        <div style="padding: 0 16px 8px; font-family:var(--font-display); font-size:14px; font-weight:700; color:var(--gris-700); text-transform:uppercase; letter-spacing:0.5px">📸 Galería escolar</div>
+        <div class="galeria-scroll" id="galeria-list">
+          <div class="empty-state" style="padding:20px 32px"><div class="empty-icon">📷</div><div class="empty-text">Sin fotos aún</div></div>
+        </div>
+      </div>
+
+      <div class="scroll-pad-bottom"></div>
+    </div>
+
+    <!-- ─── PAGOS ─── -->
+    <div class="view" id="view-pagos">
+
+      <!-- Estado de cuenta -->
+      <div style="background:white;border-radius:16px;border:1.5px solid #e2e8f0;padding:20px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,.06);">
+        <div style="font-size:14px;font-weight:700;margin-bottom:4px;">💳 Estado de cuenta</div>
+        <div style="font-size:12px;color:#64748b;margin-bottom:16px;">Ciclo escolar 2025–2026</div>
+        <div id="pagos-estado-wrap">
+          <div style="text-align:center;padding:24px;color:#64748b;font-size:13px;">Cargando…</div>
+        </div>
+      </div>
+
+      <!-- Cargos pendientes -->
+      <div style="background:white;border-radius:16px;border:1.5px solid #e2e8f0;padding:20px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,.06);">
+        <div style="font-size:14px;font-weight:700;margin-bottom:14px;">⏳ Cargos pendientes</div>
+        <div id="pagos-pendientes-list">
+          <div style="text-align:center;padding:20px;color:#64748b;font-size:13px;">Cargando…</div>
+        </div>
+      </div>
+
+      <!-- Historial de pagos -->
+      <div style="background:white;border-radius:16px;border:1.5px solid #e2e8f0;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.06);">
+        <div style="font-size:14px;font-weight:700;margin-bottom:14px;">📜 Historial de pagos</div>
+        <div id="pagos-historial-list">
+          <div style="text-align:center;padding:20px;color:#64748b;font-size:13px;">Sin registros aún.</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ─── VISTA: TUTOR (Chat con el tutor del grupo) ─── -->
+    <div class="view" id="view-tutor">
+      <div class="scroll-pad"></div>
+
+      <div style="margin:0 16px 12px;">
+        <div style="font-size:14px;font-weight:800;color:#0f172a;margin-bottom:4px;">💬 Mensajes con el tutor</div>
+        <div style="font-size:12px;color:#64748b;">Comunícate directamente con el docente tutor del grupo de tu hijo/a.</div>
+      </div>
+
+      <!-- Info del tutor -->
+      <div class="card" id="tutor-info-card">
+        <div style="display:flex;align-items:center;gap:14px;">
+          <div style="width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#064e2f,#15803d);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">👤</div>
+          <div style="flex:1;">
+            <div id="tutor-nombre-lbl" style="font-weight:700;font-size:15px;color:#0f172a;">Cargando...</div>
+            <div id="tutor-grupo-lbl" style="font-size:12px;color:#64748b;margin-top:2px;"></div>
+          </div>
+          <button onclick="padreIniciarChat()" id="btn-iniciar-chat"
+            style="padding:10px 18px;background:linear-gradient(135deg,#15803d,#16a34a);color:white;border:none;border-radius:12px;font-weight:700;font-size:13px;cursor:pointer;display:none;">
+            Abrir chat
+          </button>
+        </div>
+      </div>
+
+      <!-- Área de chat -->
+      <div class="card" id="tutor-chat-card" style="display:none;">
+        <div id="padre-chat-mensajes" style="display:flex;flex-direction:column;gap:8px;min-height:200px;max-height:340px;overflow-y:auto;padding:4px;margin-bottom:12px;">
+          <div style="text-align:center;padding:30px;color:#94a3b8;font-size:13px;">Cargando conversación...</div>
+        </div>
+        <div style="display:flex;gap:8px;border-top:1px solid #f1f5f9;padding-top:10px;">
+          <input id="padre-chat-input" type="text" placeholder="Escribe un mensaje al tutor…"
+            style="flex:1;padding:11px 14px;border:1.5px solid #e2e8f0;border-radius:20px;font-size:14px;outline:none;font-family:var(--font-body);"
+            onkeydown="if(event.key==='Enter')padreEnviarMensaje()">
+          <button onclick="padreEnviarMensaje()"
+            style="padding:10px 18px;background:linear-gradient(135deg,#15803d,#16a34a);color:white;border:none;border-radius:20px;font-weight:700;font-size:14px;cursor:pointer;">Enviar</button>
+        </div>
+      </div>
+
+      <!-- Sin tutor -->
+      <div id="sin-tutor-msg" class="card" style="display:none;text-align:center;padding:40px 20px;">
+        <div style="font-size:44px;margin-bottom:12px;">👋</div>
+        <div style="font-weight:700;font-size:15px;color:#334155;margin-bottom:6px;">Sin tutor asignado</div>
+        <div style="font-size:13px;color:#64748b;">Cuando la escuela asigne un tutor al grupo de tu hijo/a, aparecerá aquí.</div>
+      </div>
+
+      <div class="scroll-pad-bottom"></div>
+    </div>
+
+    <!-- ─── VISTA: EXÁMENES ─── -->
+    <div class="view" id="view-examenes">
+      <div class="scroll-pad"></div>
+      <div class="card">
+        <div class="card-title">📅 Próximos exámenes</div>
+        <div style="font-size:12px;color:#64748b;margin-bottom:16px;">Fechas de exámenes y guías de estudio publicadas por el docente</div>
+        <div id="padres-examenes-lista">
+          <div style="text-align:center;padding:32px;color:#94a3b8;">
+            <div style="font-size:32px;margin-bottom:8px;">📅</div>
+            <div style="font-weight:700;">Cargando…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── BOLETA NEM ── -->
+    <div class="view" id="view-boleta">
+      <div class="scroll-pad"></div>
+      <div class="card">
+        <div class="card-title">📄 Boleta de Evaluación NEM</div>
+        <div style="font-size:12px;color:#64748b;margin-bottom:14px;">Calificaciones trimestrales · Plan 2022 Nueva Escuela Mexicana</div>
+        <!-- Selector de trimestre -->
+        <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+          <button id="blt-p-t1" onclick="padreSwitchTrim(1)"
+            style="padding:7px 16px;border-radius:20px;border:1.5px solid #d1d5db;background:white;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer;color:#374151;">
+            1° Trimestre
+          </button>
+          <button id="blt-p-t2" onclick="padreSwitchTrim(2)"
+            style="padding:7px 16px;border-radius:20px;border:1.5px solid var(--verde);background:var(--verde);font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer;color:white;">
+            2° Trimestre
+          </button>
+          <button id="blt-p-t3" onclick="padreSwitchTrim(3)"
+            style="padding:7px 16px;border-radius:20px;border:1.5px solid #d1d5db;background:white;font-family:var(--font-body);font-size:13px;font-weight:700;cursor:pointer;color:#374151;">
+            3° Trimestre
+          </button>
+        </div>
+        <div id="boleta-padre-contenido">
+          <div style="text-align:center;padding:40px;color:#94a3b8;">⏳ Cargando boleta…</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /app-content -->
+
+</div><!-- /app -->
+
+<!-- MODAL AVISOS -->
+<div class="modal-overlay" id="modal-notifs">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">🔔 Notificaciones</div>
+    <div id="modal-notifs-list">
+      <div class="empty-state"><div class="empty-icon">✅</div><div class="empty-text">Todo al día</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL MATERIA DETALLE -->
+<div class="modal-overlay" id="modal-materia">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="modal-materia-title">Materia</div>
+    <div id="modal-materia-body"></div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════
+// SIEMBRA FAMILIAS v2 — Lógica principal
+// Conecta a: maoioxmnfzzwnuinesyt (hub único)
+// ═══════════════════════════════════════════
+
+// ── Credenciales ──────────────────────────
+const SB_URL_HUB    = 'https://maoioxmnfzzwnuinesyt.supabase.co';
+const SB_KEY_HUB    = 'sb_publishable_fNwG2bdRTbrV-JCF7of8hA_TDjSXplY';
+const AI_ROUTER_URL = `${SB_URL_HUB}/functions/v1/ai-router`;
+
+// ── Límites diarios de IA ──────────────────────────────────────────
+const AI_LIMITES = {
+  padre_reporte_ia: 2,
+  _default: 2,
+};
+function aiVerificarLimite(feature) {
+  const hoy = new Date().toISOString().slice(0,10);
+  const key = 'siembra_ai_uso_' + (window.currentPerfil?.id || 'demo');
+  let datos;
+  try { datos = JSON.parse(localStorage.getItem(key) || 'null'); } catch(e) { datos = null; }
+  if (!datos || datos.fecha !== hoy) datos = { fecha: hoy, conteos: {} };
+  const limite = AI_LIMITES[feature] ?? AI_LIMITES._default;
+  const usado = datos.conteos[feature] || 0;
+  return { ok: usado < limite, usado, limite, datos, key };
+}
+function aiRegistrarUso(feature) {
+  const hoy = new Date().toISOString().slice(0,10);
+  const key = 'siembra_ai_uso_' + (window.currentPerfil?.id || 'demo');
+  let datos;
+  try { datos = JSON.parse(localStorage.getItem(key) || 'null'); } catch(e) { datos = null; }
+  if (!datos || datos.fecha !== hoy) datos = { fecha: hoy, conteos: {} };
+  datos.conteos[feature] = (datos.conteos[feature] || 0) + 1;
+  localStorage.setItem(key, JSON.stringify(datos));
+}
+function aiMostrarLimiteAgotado(feature, limite) {
+  const nombres = { padre_reporte_ia: 'informe pedagógico' };
+  const nom = nombres[feature] || feature;
+  const msg = `⏳ Límite diario de ${limite} ${limite===1?'uso':'usos'} para ${nom}. Regresa mañana.`;
+  if (typeof showToast === 'function') showToast(msg);
+  else alert(msg);
+}
+
+// ── Función central IA ─────────────────────────────────────────────
+async function callAI({ feature, prompt, system }) {
+  if (feature) {
+    const check = aiVerificarLimite(feature);
+    if (!check.ok) {
+      aiMostrarLimiteAgotado(feature, check.limite);
+      throw new Error(`Límite diario alcanzado (${check.limite} usos)`);
+    }
+    aiRegistrarUso(feature);
+  }
+  const { data: { session } } = await sbHub.auth.getSession();
+  const jwt = session?.access_token;
+  if (!jwt) throw new Error('Sesión expirada');
+  const resp = await fetch(AI_ROUTER_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwt}` },
+    body: JSON.stringify({ feature, prompt, system }),
+  });
+  if (!resp.ok) { const e = await resp.json().catch(()=>({})); throw new Error(e.error || `Error ${resp.status}`); }
+  const data = await resp.json();
+  return data.text || '';
+}
+
+let sbHub = null;
+try { sbHub = supabase.createClient(SB_URL_HUB, SB_KEY_HUB); window.sb = sbHub; } catch(e){}
+</script>
+<script src="siembra-services.js"></script>
+<script>
+// Padres main portal -> app/core/padres-main.js
+</script>
+
+<!-- MODAL CANJE CONFIRMACIÓN -->
+<div class="modal-overlay" id="modal-canje">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="modal-canje-title">Canjear beneficio</div>
+    <div id="modal-canje-body"></div>
+  </div>
+</div>
+
+<!-- MODAL CÓDIGO GENERADO -->
+<div class="modal-overlay" id="modal-codigo">
+  <div class="modal-sheet" style="text-align:center">
+    <div class="modal-handle"></div>
+    <div style="font-size:48px;margin:8px 0">🎉</div>
+    <div style="font-family:var(--font-display);font-size:22px;font-weight:800;margin-bottom:8px">¡Canje exitoso!</div>
+    <div style="font-size:13px;color:var(--gris-400);margin-bottom:20px" id="modal-codigo-comercio">Presenta este código en la tienda</div>
+    <div style="background:var(--gris-100);border:2px dashed var(--gris-200);border-radius:var(--radius-lg);padding:20px;margin-bottom:16px">
+      <div style="font-size:11px;color:var(--gris-400);font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Tu código</div>
+      <div style="font-family:var(--font-display);font-size:28px;font-weight:900;color:var(--verde);letter-spacing:2px" id="modal-codigo-texto">—</div>
+      <div style="font-size:11px;color:var(--gris-400);margin-top:8px" id="modal-codigo-expira">Válido por 30 días</div>
+    </div>
+    <button onclick="closeModal('modal-codigo')" style="width:100%;padding:13px;background:var(--verde);color:white;border:none;border-radius:var(--radius-md);font-family:var(--font-display);font-size:15px;font-weight:800;cursor:pointer">¡Entendido!</button>
+  </div>
+</div>
+</body>
+</html>

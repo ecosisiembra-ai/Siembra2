@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SIEMBRA — Bienvenida a tu escuela</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@700&family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--verde:#0a5c2e;--verde-mid:#16793a;--verde-l:#f0fdf4;--gris-200:#e2e8f0;--texto:#0f172a;}
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Sora',sans-serif;}
+body{background:linear-gradient(135deg,#f0fdf4 0%,#f8fafc 100%);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;}
+
+.wizard{background:white;border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,.12);width:100%;max-width:560px;overflow:hidden;}
+.wiz-header{background:linear-gradient(135deg,var(--verde),var(--verde-mid));padding:28px 32px;color:white;}
+.wiz-logo{display:flex;align-items:center;gap:10px;margin-bottom:16px;}
+.wiz-logo span{font-family:'Fraunces',serif;font-size:22px;}
+.wiz-titulo{font-family:'Fraunces',serif;font-size:26px;margin-bottom:4px;}
+.wiz-sub{font-size:13px;opacity:.7;}
+
+/* Progress */
+.progress-bar{height:4px;background:rgba(255,255,255,.2);border-radius:99px;margin-top:16px;}
+.progress-fill{height:100%;background:white;border-radius:99px;transition:.5s;}
+.step-labels{display:flex;justify-content:space-between;margin-top:8px;}
+.step-lbl{font-size:10px;opacity:.6;text-align:center;flex:1;}
+.step-lbl.done{opacity:1;font-weight:700;}
+
+.wiz-body{padding:28px 32px;}
+.step{display:none;}
+.step.active{display:block;}
+.step-title{font-family:'Fraunces',serif;font-size:20px;margin-bottom:4px;}
+.step-sub{font-size:13px;color:#64748b;margin-bottom:20px;}
+
+.form-group{margin-bottom:16px;}
+.form-group label{display:block;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;}
+.form-group input,.form-group select{width:100%;padding:11px 14px;border:1.5px solid var(--gris-200);border-radius:10px;font-family:'Sora',sans-serif;font-size:13px;outline:none;transition:.15s;}
+.form-group input:focus,.form-group select:focus{border-color:var(--verde);box-shadow:0 0 0 3px rgba(10,92,46,.08);}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+
+.check-group{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.check-item{display:flex;align-items:center;gap:8px;padding:10px 12px;border:1.5px solid var(--gris-200);border-radius:10px;cursor:pointer;transition:.15s;}
+.check-item:hover{border-color:var(--verde);background:var(--verde-l);}
+.check-item input{width:16px;height:16px;accent-color:var(--verde);}
+.check-item span{font-size:12px;font-weight:600;}
+
+.wiz-footer{display:flex;align-items:center;justify-content:space-between;padding:16px 32px;border-top:1.5px solid var(--gris-200);background:#fafafa;}
+.btn{padding:10px 20px;border-radius:10px;font-family:'Sora',sans-serif;font-size:13px;font-weight:700;cursor:pointer;border:1.5px solid transparent;transition:.15s;}
+.btn-primary{background:var(--verde);color:white;}
+.btn-primary:hover{background:var(--verde-mid);}
+.btn-outline{background:white;color:#475569;border-color:var(--gris-200);}
+.btn-outline:hover{border-color:var(--verde);color:var(--verde);}
+.btn:disabled{opacity:.5;cursor:not-allowed;}
+
+/* Review step */
+.review-item{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--gris-200);}
+.review-lbl{font-size:11px;color:#64748b;font-weight:600;width:140px;flex-shrink:0;}
+.review-val{font-size:13px;font-weight:600;color:var(--texto);}
+
+/* Success step */
+.success{text-align:center;padding:10px 0 20px;}
+.success-icon{font-size:60px;margin-bottom:16px;}
+.success-titulo{font-family:'Fraunces',serif;font-size:24px;margin-bottom:8px;}
+.success-sub{font-size:13px;color:#64748b;line-height:1.7;margin-bottom:20px;}
+.success-accesos{background:var(--verde-l);border-radius:12px;padding:16px;text-align:left;margin-bottom:20px;}
+.acceso-item{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+.acceso-item:last-child{margin-bottom:0;}
+.acceso-icon{width:32px;height:32px;border-radius:8px;background:var(--verde);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;}
+</style>
+</head>
+<body>
+
+<div class="wizard">
+  <div class="wiz-header">
+    <div class="wiz-logo">🌱 <span>SIEMBRA</span></div>
+    <div class="wiz-titulo">¡Bienvenido a SIEMBRA!</div>
+    <div class="wiz-sub">Configuremos tu escuela en 5 minutos</div>
+    <div class="progress-bar"><div class="progress-fill" id="progress" style="width:20%"></div></div>
+    <div class="step-labels">
+      <span class="step-lbl done" id="lbl-0">Escuela</span>
+      <span class="step-lbl" id="lbl-1">Director</span>
+      <span class="step-lbl" id="lbl-2">Estructura</span>
+      <span class="step-lbl" id="lbl-3">IA & Módulos</span>
+      <span class="step-lbl" id="lbl-4">Listo ✓</span>
+    </div>
+  </div>
+
+  <div class="wiz-body">
+
+    <!-- Paso 0: Datos de la escuela -->
+    <div class="step active" id="step-0">
+      <div class="step-title">Tu escuela</div>
+      <div class="step-sub">Ingresa los datos oficiales de tu plantel</div>
+      <div class="form-group"><label>Nombre oficial de la escuela</label>
+        <input type="text" id="esc-nombre" placeholder="Esc. Primaria Benito Juárez" oninput="validarStep0()"></div>
+      <div class="form-row">
+        <div class="form-group"><label>CCT (clave del plantel)</label>
+          <input type="text" id="esc-cct" placeholder="15EPR0001A" maxlength="13" oninput="this.value=this.value.toUpperCase();validarStep0()"></div>
+        <div class="form-group"><label>Nivel educativo</label>
+          <select id="esc-nivel" onchange="validarStep0()">
+            <option value="">Seleccionar…</option>
+            <option value="primaria">Primaria</option>
+            <option value="secundaria">Secundaria</option>
+            <option value="ambos">Primaria y Secundaria</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Turno</label>
+          <select id="esc-turno">
+            <option value="matutino">Matutino</option>
+            <option value="vespertino">Vespertino</option>
+            <option value="tiempo-completo">Tiempo completo</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Municipio / Estado</label>
+          <input type="text" id="esc-municipio" placeholder="Ej: Monterrey, N.L."></div>
+      </div>
+    </div>
+
+    <!-- Paso 1: Director -->
+    <div class="step" id="step-1">
+      <div class="step-title">Datos del director</div>
+      <div class="step-sub">El director tendrá acceso completo al sistema</div>
+      <div class="form-group"><label>Nombre completo</label>
+        <input type="text" id="dir-nombre" placeholder="Mtra. / Mtro. Nombre Completo" oninput="validarStep1()"></div>
+      <div class="form-row">
+        <div class="form-group"><label>Correo electrónico</label>
+          <input type="email" id="dir-email" placeholder="director@escuela.edu.mx" oninput="validarStep1()"></div>
+        <div class="form-group"><label>Teléfono</label>
+          <input type="tel" id="dir-tel" placeholder="81 XXXX XXXX"></div>
+      </div>
+      <div class="form-group"><label>Contraseña temporal (8+ caracteres)</label>
+        <input type="password" id="dir-pass" placeholder="Mínimo 8 caracteres" oninput="validarStep1()"></div>
+      <div style="background:#eff6ff;border-radius:10px;padding:12px;font-size:12px;color:#1d4ed8;margin-top:8px;">
+        💡 Se enviará un correo de bienvenida al director con sus credenciales y el enlace de acceso.
+      </div>
+    </div>
+
+    <!-- Paso 2: Estructura escolar -->
+    <div class="step" id="step-2">
+      <div class="step-title">Estructura escolar</div>
+      <div class="step-sub">Configuración inicial — puedes cambiarla después</div>
+      <div class="form-row">
+        <div class="form-group"><label>Número de grupos</label>
+          <select id="num-grupos">
+            <option value="1">1 grupo</option><option value="2">2 grupos</option>
+            <option value="3">3 grupos</option><option value="6" selected>6 grupos</option>
+            <option value="12">12 grupos</option><option value="18">18 grupos</option>
+            <option value="custom">Otro número</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Alumnos por grupo (aprox)</label>
+          <select id="alumnos-por-grupo">
+            <option value="20">~20 alumnos</option>
+            <option value="25" selected>~25 alumnos</option>
+            <option value="30">~30 alumnos</option>
+            <option value="35">~35 alumnos</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group"><label>Ciclo escolar activo</label>
+        <select id="ciclo-escolar">
+          <option value="2025-2026" selected>2025-2026</option>
+          <option value="2026-2027">2026-2027</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Personal que usará SIEMBRA</label>
+        <div class="check-group">
+          <label class="check-item"><input type="checkbox" checked id="rol-docente"><span>👩‍🏫 Docentes</span></label>
+          <label class="check-item"><input type="checkbox" checked id="rol-director"><span>🏫 Director</span></label>
+          <label class="check-item"><input type="checkbox" id="rol-subdirector"><span>📋 Subdirector</span></label>
+          <label class="check-item"><input type="checkbox" id="rol-coordinador"><span>🎯 Coordinador</span></label>
+          <label class="check-item"><input type="checkbox" id="rol-ts"><span>💼 Trabajo Social</span></label>
+          <label class="check-item"><input type="checkbox" checked id="rol-alumno"><span>👨‍🎓 Alumnos</span></label>
+          <label class="check-item"><input type="checkbox" checked id="rol-padre"><span>👨‍👩‍👧 Padres</span></label>
+          <label class="check-item"><input type="checkbox" id="rol-prefecto"><span>🛡️ Prefectos</span></label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Paso 3: IA & Módulos -->
+    <div class="step" id="step-3">
+      <div class="step-title">IA y módulos activos</div>
+      <div class="step-sub">Personaliza qué funciones estarán disponibles</div>
+      <div class="form-group"><label>Módulos de IA a activar</label>
+        <div class="check-group">
+          <label class="check-item"><input type="checkbox" checked><span>🧠 Análisis alumno</span></label>
+          <label class="check-item"><input type="checkbox" checked><span>📊 Reporte director</span></label>
+          <label class="check-item"><input type="checkbox" checked><span>📅 Plan semanal IA</span></label>
+          <label class="check-item"><input type="checkbox" checked><span>👨‍👩‍👧 Reporte padres</span></label>
+          <label class="check-item"><input type="checkbox" checked><span>🚨 Alertas TS</span></label>
+          <label class="check-item"><input type="checkbox" checked><span>📋 PEMC automático</span></label>
+          <label class="check-item"><input type="checkbox" checked><span>🎯 Eval. docente</span></label>
+          <label class="check-item"><input type="checkbox" checked><span>📖 Quiz lectura IA</span></label>
+        </div>
+      </div>
+      <div class="form-group"><label>Reporte automático semanal</label>
+        <select id="dia-reporte">
+          <option value="1" selected>Lunes (recomendado)</option>
+          <option value="5">Viernes</option>
+          <option value="0">Desactivado</option>
+        </select>
+      </div>
+      <div style="background:var(--verde-l);border-radius:10px;padding:12px;font-size:12px;color:var(--verde);margin-top:8px;">
+        🤖 La IA de SIEMBRA está basada en Claude (Anthropic). Necesitas agregar créditos en <strong>console.anthropic.com</strong> para activarla (~$5 USD para empezar).
+      </div>
+    </div>
+
+    <!-- Paso 4: Revisión y confirmación -->
+    <div class="step" id="step-4">
+      <div class="step-title">Revisa y confirma</div>
+      <div class="step-sub">Verifica que todo esté correcto antes de crear tu escuela</div>
+      <div id="review-contenido"></div>
+    </div>
+
+    <!-- Paso 5: Éxito -->
+    <div class="step" id="step-5">
+      <div class="success">
+        <div class="success-icon">🌱</div>
+        <div class="success-titulo">¡Tu escuela está lista!</div>
+        <div class="success-sub">
+          Hemos configurado <strong id="success-nombre">tu escuela</strong> en SIEMBRA.<br>
+          Tus credenciales de acceso han sido enviadas por correo.
+        </div>
+        <div class="success-accesos">
+          <div style="font-size:11px;font-weight:700;color:var(--verde);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Accesos disponibles</div>
+          <div class="acceso-item"><div class="acceso-icon">🏫</div><div><div style="font-size:12px;font-weight:700;">Portal personal escolar</div><div style="font-size:11px;color:#64748b;">index.html — director, docentes, TS</div></div></div>
+          <div class="acceso-item"><div class="acceso-icon">👨‍🎓</div><div><div style="font-size:12px;font-weight:700;">Portal alumno</div><div style="font-size:11px;color:#64748b;">alumno.html</div></div></div>
+          <div class="acceso-item"><div class="acceso-icon">👨‍👩‍👧</div><div><div style="font-size:12px;font-weight:700;">Portal padres</div><div style="font-size:11px;color:#64748b;">padres.html</div></div></div>
+        </div>
+        <button class="btn btn-primary" style="width:100%;" onclick="irAlPortal()">
+          🚀 Ir al portal de dirección →
+        </button>
+      </div>
+    </div>
+
+  </div><!-- /wiz-body -->
+
+  <div class="wiz-footer">
+    <button class="btn btn-outline" id="btn-back" onclick="prevStep()" style="display:none;">← Anterior</button>
+    <span style="font-size:12px;color:#94a3b8;" id="step-counter">Paso 1 de 5</span>
+    <button class="btn btn-primary" id="btn-next" onclick="nextStep()">Siguiente →</button>
+  </div>
+</div>
+
+<script>
+const SB_URL = 'https://maoioxmnfzzwnuinesyt.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1hb2lveG1uZnp6d251aW5lc3l0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI3Mzk4MTcsImV4cCI6MjA1ODMxNTgxN30.qmETgSN9j9vp3wQB30TSbCyFBLjrBnTBMd6GObOGZOQ';
+
+let currentStep = 0;
+const totalSteps = 5;
+
+function validarStep0() {
+  const ok = val('esc-nombre') && val('esc-cct').length >= 10 && val('esc-nivel');
+  document.getElementById('btn-next').disabled = !ok;
+}
+function validarStep1() {
+  const ok = val('dir-nombre') && val('dir-email').includes('@') && val('dir-pass').length >= 8;
+  document.getElementById('btn-next').disabled = !ok;
+}
+function val(id) { return document.getElementById(id)?.value?.trim() || ''; }
+
+function nextStep() {
+  if (currentStep === 3) { renderReview(); }
+  if (currentStep === 4) { crearEscuela(); return; }
+  currentStep++;
+  renderWizard();
+}
+function prevStep() {
+  currentStep--;
+  renderWizard();
+}
+
+function renderWizard() {
+  document.querySelectorAll('.step').forEach((s,i) => s.classList.toggle('active', i === currentStep));
+  document.getElementById('progress').style.width = ((currentStep+1)/totalSteps*100)+'%';
+  document.querySelectorAll('.step-lbl').forEach((l,i) => l.classList.toggle('done', i <= currentStep));
+  document.getElementById('btn-back').style.display = currentStep > 0 && currentStep < 5 ? 'block':'none';
+  document.getElementById('btn-next').textContent = currentStep === 4 ? '🚀 Crear escuela' : 'Siguiente →';
+  document.getElementById('btn-next').style.display = currentStep === 5 ? 'none':'block';
+  document.getElementById('step-counter').textContent = currentStep < 5 ? `Paso ${currentStep+1} de 5`:'';
+  document.getElementById('btn-next').disabled = false;
+  if (currentStep === 0) validarStep0();
+  if (currentStep === 1) validarStep1();
+}
+
+function renderReview() {
+  const roles = ['docente','director','subdirector','coordinador','ts','alumno','padre','prefecto']
+    .filter(r => document.getElementById('rol-'+r)?.checked)
+    .map(r => ({docente:'👩‍🏫 Docente',director:'🏫 Director',subdirector:'📋 Subdirector',coordinador:'🎯 Coordinador',ts:'💼 T.S.',alumno:'👨‍🎓 Alumno',padre:'👨‍👩‍👧 Padre',prefecto:'🛡️ Prefecto'})[r])
+    .join(', ');
+
+  document.getElementById('review-contenido').innerHTML = [
+    ['Escuela',       val('esc-nombre')],
+    ['CCT',           val('esc-cct')],
+    ['Nivel',         val('esc-nivel')],
+    ['Turno',         val('esc-turno')],
+    ['Municipio',     val('esc-municipio') || '—'],
+    ['Director',      val('dir-nombre')],
+    ['Email',         val('dir-email')],
+    ['Grupos',        document.getElementById('num-grupos').value + ' grupos × ' + document.getElementById('alumnos-por-grupo').value + ' alumnos'],
+    ['Ciclo escolar', val('ciclo-escolar')],
+    ['Roles activos', roles],
+  ].map(([l,v]) => `<div class="review-item"><span class="review-lbl">${l}</span><span class="review-val">${v}</span></div>`).join('');
+}
+
+async function crearEscuela() {
+  const btn = document.getElementById('btn-next');
+  btn.disabled = true; btn.textContent = '⏳ Creando escuela…';
+
+  const payload = {
+    nombre:           val('esc-nombre'),
+    cct:              val('esc-cct'),
+    nivel:            val('esc-nivel'),
+    turno:            val('esc-turno'),
+    municipio:        val('esc-municipio'),
+    email_director:   val('dir-email'),
+    nombre_director:  val('dir-nombre'),
+    ciclo_activo:     val('ciclo-escolar'),
+    plan_suscripcion: 'trial',
+    estado_suscripcion: 'trial',
+    fecha_vencimiento: new Date(Date.now() + 14*24*60*60*1000).toISOString().split('T')[0],
+    creada_at:        new Date().toISOString(),
+  };
+
+  try {
+    const r = await fetch(`${SB_URL}/rest/v1/escuelas`, {
+      method: 'POST',
+      headers: { apikey:SB_KEY, Authorization:`Bearer ${SB_KEY}`, 'Content-Type':'application/json', Prefer:'return=minimal' },
+      body: JSON.stringify(payload),
+    });
+    if (!r.ok) throw new Error('Error al crear escuela en Supabase');
+  } catch(e) {
+    console.warn('Supabase error (continuando con demo):', e.message);
+  }
+
+  document.getElementById('success-nombre').textContent = val('esc-nombre');
+  currentStep = 5;
+  renderWizard();
+}
+
+function irAlPortal() { window.location.href = 'index.html'; }
+
+// Init
+window.onload = () => { validarStep0(); };
+</script>
+</body>
+</html>

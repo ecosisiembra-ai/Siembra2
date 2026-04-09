@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SIEMBRA — Panel de Facturación</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@700&family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --verde:   #0a5c2e; --verde-mid:#16793a; --verde-l:#f0fdf4;
+  --azul:    #1d4ed8; --azul-l:#eff6ff;
+  --rojo:    #b91c1c; --rojo-l:#fef2f2;
+  --amarillo:#b45309; --amarillo-l:#fffbeb;
+  --gris-50: #64748b; --gris-100:#f1f5f9; --gris-200:#e2e8f0;
+  --texto:   #0f172a;
+  --r:       12px;
+  --shadow:  0 2px 12px rgba(0,0,0,.07);
+}
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Sora',sans-serif;}
+body{background:#f8fafc;color:var(--texto);min-height:100vh;}
+
+/* ── Header ── */
+.header{background:linear-gradient(135deg,var(--verde),var(--verde-mid));padding:0 32px;height:60px;display:flex;align-items:center;justify-content:space-between;}
+.header-logo{display:flex;align-items:center;gap:10px;color:white;}
+.header-logo span{font-family:'Fraunces',serif;font-size:20px;font-weight:700;}
+.header-sub{font-size:11px;color:rgba(255,255,255,.6);text-transform:uppercase;letter-spacing:1px;}
+
+/* ── Layout ── */
+.container{max-width:1100px;margin:0 auto;padding:28px 24px;}
+.page-title{font-family:'Fraunces',serif;font-size:26px;font-weight:700;margin-bottom:4px;}
+.page-sub{font-size:13px;color:var(--gris-50);margin-bottom:24px;}
+
+/* ── Stat cards ── */
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;}
+.kpi{background:white;border-radius:var(--r);border:1.5px solid var(--gris-200);padding:18px;}
+.kpi-icon{width:38px;height:38px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;margin-bottom:10px;}
+.kpi-val{font-family:'Fraunces',serif;font-size:26px;font-weight:700;color:var(--texto);}
+.kpi-lbl{font-size:11px;color:var(--gris-50);margin-top:2px;}
+.kpi-trend{font-size:11px;font-weight:700;margin-top:6px;}
+
+/* ── Tabla ── */
+.card{background:white;border-radius:var(--r);border:1.5px solid var(--gris-200);padding:20px;margin-bottom:20px;box-shadow:var(--shadow);}
+.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;}
+.card-title{font-size:15px;font-weight:700;}
+table{width:100%;border-collapse:collapse;}
+th{font-size:11px;font-weight:700;color:var(--gris-50);text-align:left;padding:8px 12px;text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid var(--gris-100);}
+td{padding:12px;font-size:13px;border-bottom:1px solid var(--gris-100);}
+tr:hover td{background:#fafafa;}
+.badge{display:inline-block;padding:3px 10px;border-radius:99px;font-size:10px;font-weight:700;}
+.badge-ok{background:var(--verde-l);color:var(--verde);}
+.badge-warn{background:var(--amarillo-l);color:var(--amarillo);}
+.badge-err{background:var(--rojo-l);color:var(--rojo);}
+.badge-trial{background:var(--azul-l);color:var(--azul);}
+
+/* ── Botones ── */
+.btn{padding:8px 16px;border-radius:8px;font-family:'Sora',sans-serif;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid transparent;transition:.15s;}
+.btn-primary{background:var(--verde);color:white;border-color:var(--verde);}
+.btn-primary:hover{background:var(--verde-mid);}
+.btn-outline{background:white;color:var(--verde);border-color:var(--verde);}
+.btn-sm{padding:5px 12px;font-size:11px;}
+.btn-danger{background:var(--rojo-l);color:var(--rojo);border-color:#fca5a5;}
+
+/* ── Planes ── */
+.planes{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px;}
+.plan{background:white;border-radius:var(--r);border:1.5px solid var(--gris-200);padding:20px;position:relative;}
+.plan.popular{border-color:var(--verde);box-shadow:0 0 0 3px rgba(10,92,46,.08);}
+.plan-popular-badge{position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:var(--verde);color:white;font-size:10px;font-weight:800;padding:3px 12px;border-radius:99px;white-space:nowrap;}
+.plan-nombre{font-family:'Fraunces',serif;font-size:18px;font-weight:700;margin-bottom:4px;}
+.plan-precio{font-size:26px;font-weight:900;color:var(--verde);margin-bottom:2px;}
+.plan-precio span{font-size:13px;font-weight:400;color:var(--gris-50);}
+.plan-features{list-style:none;margin:14px 0;display:flex;flex-direction:column;gap:7px;}
+.plan-features li{font-size:12px;color:#475569;}
+.plan-features li::before{content:'✓ ';color:var(--verde);font-weight:700;}
+
+/* ── Modal ── */
+.modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;z-index:1000;}
+.modal-ov.open{display:flex;}
+.modal{background:white;border-radius:16px;padding:28px;width:480px;max-width:95vw;}
+.modal h3{font-family:'Fraunces',serif;font-size:20px;margin-bottom:16px;}
+.form-group{margin-bottom:14px;}
+.form-group label{display:block;font-size:11px;font-weight:700;color:var(--gris-50);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;}
+.form-group input, .form-group select{width:100%;padding:10px 12px;border:1.5px solid var(--gris-200);border-radius:8px;font-family:'Sora',sans-serif;font-size:13px;outline:none;}
+.form-group input:focus, .form-group select:focus{border-color:var(--verde);}
+
+/* ── Tabs ── */
+.tabs{display:flex;gap:8px;margin-bottom:20px;border-bottom:2px solid var(--gris-100);padding-bottom:0;}
+.tab{padding:10px 18px;font-size:13px;font-weight:600;color:var(--gris-50);cursor:pointer;border-bottom:2.5px solid transparent;margin-bottom:-2px;transition:.15s;}
+.tab.active{color:var(--verde);border-bottom-color:var(--verde);}
+
+@media(max-width:768px){
+  .kpis{grid-template-columns:repeat(2,1fr);}
+  .planes{grid-template-columns:1fr;}
+  .container{padding:16px;}
+}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-logo">
+    <span>🌱 SIEMBRA</span>
+    <div class="header-sub">Panel de Facturación</div>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <span style="font-size:12px;color:rgba(255,255,255,.7);" id="admin-nombre">Superadmin</span>
+    <button onclick="location.href='sa.html'" class="btn" style="background:rgba(255,255,255,.15);color:white;border-color:rgba(255,255,255,.25);font-size:11px;">← Volver</button>
+  </div>
+</div>
+
+<div class="container">
+  <div class="page-title">Facturación y suscripciones</div>
+  <div class="page-sub">Gestiona planes, pagos y acceso de escuelas · MXN</div>
+
+  <!-- KPIs -->
+  <div class="kpis">
+    <div class="kpi">
+      <div class="kpi-icon" style="background:#dcfce7;">🏫</div>
+      <div class="kpi-val" id="kpi-total-escuelas">—</div>
+      <div class="kpi-lbl">Escuelas activas</div>
+      <div class="kpi-trend" style="color:#15803d;" id="kpi-trend-escuelas">—</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-icon" style="background:#dbeafe;">💰</div>
+      <div class="kpi-val" id="kpi-mrr">$—</div>
+      <div class="kpi-lbl">MRR (ingresos mensuales)</div>
+      <div class="kpi-trend" style="color:#1d4ed8;" id="kpi-trend-mrr">—</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-icon" style="background:#fef9c3;">⏰</div>
+      <div class="kpi-val" id="kpi-trials">—</div>
+      <div class="kpi-lbl">En período de prueba</div>
+      <div class="kpi-trend" style="color:#b45309;">Convierten en 14 días</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-icon" style="background:#fee2e2;">⚠️</div>
+      <div class="kpi-val" id="kpi-vencidas">—</div>
+      <div class="kpi-lbl">Suscripciones vencidas</div>
+      <div class="kpi-trend" style="color:#b91c1c;">Requieren atención</div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('escuelas',this)">🏫 Escuelas</div>
+    <div class="tab" onclick="switchTab('planes',this)">📦 Planes</div>
+    <div class="tab" onclick="switchTab('historial',this)">📋 Historial de pagos</div>
+  </div>
+
+  <!-- Tab: Escuelas -->
+  <div id="tab-escuelas">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Escuelas suscritas</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <input type="text" placeholder="🔍 Buscar escuela…" oninput="filtrarEscuelas(this.value)"
+            style="padding:7px 12px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:12px;outline:none;width:200px;">
+          <button class="btn btn-primary btn-sm" onclick="abrirModalNuevaEscuela()">+ Nueva escuela</button>
+        </div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Escuela</th><th>CCT</th><th>Plan</th><th>Estado</th>
+            <th>Vence</th><th>MRR</th><th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="tabla-escuelas"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Tab: Planes -->
+  <div id="tab-planes" style="display:none;">
+    <div class="planes">
+      <div class="plan">
+        <div class="plan-nombre">Básico</div>
+        <div class="plan-precio">$199 <span>MXN/mes</span></div>
+        <ul class="plan-features">
+          <li>Hasta 150 alumnos</li>
+          <li>Portal docente + alumno</li>
+          <li>IA básica (50 consultas/mes)</li>
+          <li>Soporte por email</li>
+        </ul>
+        <button class="btn btn-outline" style="width:100%;" onclick="editarPlan('basico')">Editar plan</button>
+      </div>
+      <div class="plan popular">
+        <div class="plan-popular-badge">⭐ Más popular</div>
+        <div class="plan-nombre">Estándar</div>
+        <div class="plan-precio">$399 <span>MXN/mes</span></div>
+        <ul class="plan-features">
+          <li>Hasta 400 alumnos</li>
+          <li>Todos los portales</li>
+          <li>IA completa (ilimitada)</li>
+          <li>PEMC + Ruta de Mejora</li>
+          <li>Soporte prioritario</li>
+        </ul>
+        <button class="btn btn-primary" style="width:100%;" onclick="editarPlan('estandar')">Editar plan</button>
+      </div>
+      <div class="plan">
+        <div class="plan-nombre">Premium</div>
+        <div class="plan-precio">$699 <span>MXN/mes</span></div>
+        <ul class="plan-features">
+          <li>Alumnos ilimitados</li>
+          <li>Multi-turno y multi-nivel</li>
+          <li>IA ilimitada + análisis predictivo</li>
+          <li>Reportes SEP automatizados</li>
+          <li>Soporte dedicado 24/7</li>
+          <li>Onboarding personalizado</li>
+        </ul>
+        <button class="btn btn-outline" style="width:100%;" onclick="editarPlan('premium')">Editar plan</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="margin-bottom:12px;">💡 Estrategia de precios</div>
+      <div style="font-size:13px;color:var(--gris-50);line-height:1.7;">
+        Con 20 escuelas en plan Estándar = <strong style="color:var(--verde);">$7,980 MXN/mes</strong> (~$400 USD). 
+        Con 50 escuelas = <strong style="color:var(--verde);">$19,950 MXN/mes</strong>. 
+        Costo de IA por escuela: ~$6 USD. Margen: >85%.
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab: Historial -->
+  <div id="tab-historial" style="display:none;">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Historial de pagos</div>
+        <button class="btn btn-outline btn-sm" onclick="exportarHistorial()">⬇ Exportar CSV</button>
+      </div>
+      <table>
+        <thead><tr><th>Fecha</th><th>Escuela</th><th>Plan</th><th>Monto</th><th>Método</th><th>Estado</th></tr></thead>
+        <tbody id="tabla-historial"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Modal nueva escuela / editar suscripción -->
+<div class="modal-ov" id="modal-escuela-ov" onclick="this.classList.remove('open')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h3 id="modal-titulo-escuela">Nueva escuela</h3>
+    <div class="form-group"><label>Nombre de la escuela</label><input type="text" id="esc-nombre" placeholder="Ej: Escuela Primaria Benito Juárez"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div class="form-group"><label>CCT</label><input type="text" id="esc-cct" placeholder="15EPR0001A"></div>
+      <div class="form-group"><label>Plan</label>
+        <select id="esc-plan">
+          <option value="trial">Trial (14 días gratis)</option>
+          <option value="basico">Básico — $199/mes</option>
+          <option value="estandar" selected>Estándar — $399/mes</option>
+          <option value="premium">Premium — $699/mes</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div class="form-group"><label>Email director <span style="font-size:10px;color:#94a3b8;">(referencia — no se guarda en escuelas)</span></label><input type="email" id="esc-email" placeholder="director@escuela.edu.mx" style="opacity:.7"></div>
+      <div class="form-group"><label>Estado</label>
+        <select id="esc-estado">
+          <option value="activa">Activa</option>
+          <option value="trial">Trial</option>
+          <option value="suspendida">Suspendida</option>
+          <option value="cancelada">Cancelada</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group"><label>Fecha de vencimiento</label><input type="date" id="esc-vencimiento"></div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px;">
+      <button class="btn btn-outline" onclick="document.getElementById('modal-escuela-ov').classList.remove('open')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarEscuela()">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Config Supabase ────────────────────────────────────────
+const SB_URL = 'https://maoioxmnfzzwnuinesyt.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1hb2lveG1uZnp6d251aW5lc3l0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI3Mzk4MTcsImV4cCI6MjA1ODMxNTgxN30.qmETgSN9j9vp3wQB30TSbCyFBLjrBnTBMd6GObOGZOQ';
+
+async function sbFetch(table, query='') {
+  const r = await fetch(`${SB_URL}/rest/v1/${table}${query}`, {
+    headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, 'Content-Type': 'application/json', Prefer: 'count=exact' }
+  });
+  return r.json();
+}
+
+// ── Estado local (demo + Supabase) ─────────────────────────
+let ESCUELAS = [];
+let tabActual = 'escuelas';
+
+// ── Datos demo ─────────────────────────────────────────────
+const ESCUELAS_DEMO = [
+  { id:1, nombre:'Esc. Prim. Benito Juárez',    cct:'15EPR0001A', plan:'estandar', estado:'activa',    vencimiento:'2026-08-31', mrr:399, director:'dir1@test.com' },
+  { id:2, nombre:'Secundaria Técnica #45',        cct:'15EST0045B', plan:'premium',  estado:'activa',    vencimiento:'2026-07-15', mrr:699, director:'dir2@test.com' },
+  { id:3, nombre:'Esc. Prim. Lázaro Cárdenas',   cct:'15EPR0023C', plan:'basico',   estado:'activa',    vencimiento:'2026-06-30', mrr:199, director:'dir3@test.com' },
+  { id:4, nombre:'Telesecundaria Sor Juana',      cct:'15ETV0012D', plan:'estandar', estado:'trial',     vencimiento:'2026-04-05', mrr:0,   director:'dir4@test.com' },
+  { id:5, nombre:'Esc. Primaria Francisco Villa', cct:'15EPR0089E', plan:'basico',   estado:'vencida',   vencimiento:'2026-03-01', mrr:0,   director:'dir5@test.com' },
+];
+
+const HISTORIAL_DEMO = [
+  { fecha:'2026-03-01', escuela:'Esc. Prim. Benito Juárez',  plan:'Estándar', monto:'$399',  metodo:'Transferencia', estado:'pagado' },
+  { fecha:'2026-03-01', escuela:'Secundaria Técnica #45',     plan:'Premium',  monto:'$699',  metodo:'Transferencia', estado:'pagado' },
+  { fecha:'2026-03-01', escuela:'Esc. Prim. Lázaro Cárdenas',plan:'Básico',   monto:'$199',  metodo:'SPEI',          estado:'pagado' },
+  { fecha:'2026-02-01', escuela:'Esc. Prim. Benito Juárez',  plan:'Estándar', monto:'$399',  metodo:'Transferencia', estado:'pagado' },
+  { fecha:'2026-02-01', escuela:'Esc. Primaria Francisco V.', plan:'Básico',   monto:'$199',  metodo:'SPEI',          estado:'fallido' },
+];
+
+// ── Init ───────────────────────────────────────────────────
+window.onload = function() {
+  ESCUELAS = [...ESCUELAS_DEMO];
+  calcularKPIs();
+  renderTablaEscuelas();
+  renderHistorial();
+  // Intentar cargar de Supabase
+  cargarDeSupabase();
+};
+
+async function cargarDeSupabase() {
+  try {
+    const data = await sbFetch('escuelas', '?select=id,nombre,cct,plan_suscripcion,estado_suscripcion,fecha_vencimiento&order=nombre');
+    if (Array.isArray(data) && data.length) {
+      ESCUELAS = data.map(e => ({
+        id:          e.id,
+        nombre:      e.nombre,
+        cct:         e.cct,
+        plan:        e.plan_suscripcion || 'basico',
+        estado:      e.estado_suscripcion || 'trial',
+        vencimiento: e.fecha_vencimiento?.split('T')[0] || '',
+        mrr:         { basico:199, estandar:399, premium:699 }[e.plan_suscripcion] || 0,
+        director:    '', // email del director vive en tabla usuarios
+      }));
+      calcularKPIs();
+      renderTablaEscuelas();
+    }
+  } catch(e) { /* usa datos demo */ }
+}
+
+function calcularKPIs() {
+  const activas = ESCUELAS.filter(e => e.estado === 'activa');
+  const trials  = ESCUELAS.filter(e => e.estado === 'trial');
+  const vencidas= ESCUELAS.filter(e => e.estado === 'vencida' || e.estado === 'suspendida');
+  const mrr     = activas.reduce((s,e) => s + (e.mrr||0), 0);
+
+  setText('kpi-total-escuelas', activas.length);
+  setText('kpi-mrr',   '$' + mrr.toLocaleString('es-MX'));
+  setText('kpi-trials',  trials.length);
+  setText('kpi-vencidas', vencidas.length);
+  setText('kpi-trend-escuelas', ESCUELAS.length + ' totales');
+  setText('kpi-trend-mrr', '~$' + Math.round(mrr*12/1000) + 'k/año');
+}
+
+function setText(id, v) { const e=document.getElementById(id); if(e) e.textContent=v; }
+
+let filtroEsc = '';
+function filtrarEscuelas(v) { filtroEsc = v.toLowerCase(); renderTablaEscuelas(); }
+
+function renderTablaEscuelas() {
+  const tb = document.getElementById('tabla-escuelas');
+  if (!tb) return;
+  const lista = ESCUELAS.filter(e =>
+    e.nombre.toLowerCase().includes(filtroEsc) || (e.cct||'').toLowerCase().includes(filtroEsc)
+  );
+  const planLabel = { basico:'Básico',estandar:'Estándar',premium:'Premium',trial:'Trial' };
+  const estadoBadge = {
+    activa:    '<span class="badge badge-ok">✅ Activa</span>',
+    trial:     '<span class="badge badge-trial">🔵 Trial</span>',
+    vencida:   '<span class="badge badge-err">🔴 Vencida</span>',
+    suspendida:'<span class="badge badge-warn">🟡 Suspendida</span>',
+    cancelada: '<span class="badge badge-err">❌ Cancelada</span>',
+  };
+  tb.innerHTML = lista.map(e => `
+    <tr>
+      <td><div style="font-weight:700;">${e.nombre}</div><div style="font-size:11px;color:#64748b;">${e.director||'—'}</div></td>
+      <td style="font-size:12px;color:#64748b;">${e.cct||'—'}</td>
+      <td><span class="badge badge-ok">${planLabel[e.plan]||e.plan}</span></td>
+      <td>${estadoBadge[e.estado]||e.estado}</td>
+      <td style="font-size:12px;">${e.vencimiento||'—'}</td>
+      <td style="font-weight:700;color:${e.mrr>0?'#15803d':'#94a3b8'};">${e.mrr>0?'$'+e.mrr:e.estado==='trial'?'Trial':'—'}</td>
+      <td>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-outline btn-sm" onclick="editarEscuela(${e.id})">✏️ Editar</button>
+          <button class="btn btn-primary btn-sm" onclick="abrirModalCobro('${e.id}','${e.plan||'estandar'}')">💳 Cobrar</button>
+          ${e.estado==='vencida'?`<button class="btn btn-primary btn-sm" onclick="reactivarEscuela(${e.id})">↺ Reactivar</button>`:''}
+          ${e.estado==='activa'?`<button class="btn btn-outline btn-sm" style="color:#b91c1c;border-color:#fca5a5;" onclick="suspenderEscuela(${e.id})">⏸ Suspender</button>`:''}
+        </div>
+      </td>
+    </tr>`).join('') || '<tr><td colspan="7" style="padding:24px;text-align:center;color:#94a3b8;">Sin escuelas registradas</td></tr>';
+}
+
+function renderHistorial() {
+  const tb = document.getElementById('tabla-historial');
+  if (!tb) return;
+  const estadoBadge = { pagado:'<span class="badge badge-ok">✅ Pagado</span>', fallido:'<span class="badge badge-err">❌ Fallido</span>', pendiente:'<span class="badge badge-warn">⏳ Pendiente</span>' };
+  tb.innerHTML = HISTORIAL_DEMO.map(h => `
+    <tr>
+      <td style="font-size:12px;">${h.fecha}</td>
+      <td style="font-weight:600;">${h.escuela}</td>
+      <td>${h.plan}</td>
+      <td style="font-weight:700;">${h.monto}</td>
+      <td style="font-size:12px;color:#64748b;">${h.metodo}</td>
+      <td>${estadoBadge[h.estado]||h.estado}</td>
+    </tr>`).join('');
+}
+
+function switchTab(tab, btn) {
+  tabActual = tab;
+  ['escuelas','planes','historial'].forEach(t => {
+    document.getElementById('tab-'+t).style.display = t===tab?'block':'none';
+  });
+  document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+}
+
+function abrirModalNuevaEscuela() {
+  ['esc-nombre','esc-cct','esc-email'].forEach(id => { const e=document.getElementById(id); if(e) e.value=''; });
+  document.getElementById('esc-plan').value   = 'estandar';
+  document.getElementById('esc-estado').value = 'trial';
+  const d = new Date(); d.setDate(d.getDate()+14);
+  document.getElementById('esc-vencimiento').value = d.toISOString().split('T')[0];
+  document.getElementById('modal-titulo-escuela').textContent = 'Nueva escuela';
+  document.getElementById('modal-escuela-ov').classList.add('open');
+}
+
+function editarEscuela(id) {
+  const e = ESCUELAS.find(x => x.id === id);
+  if (!e) return;
+  document.getElementById('esc-nombre').value     = e.nombre;
+  document.getElementById('esc-cct').value        = e.cct||'';
+  document.getElementById('esc-plan').value       = e.plan;
+  document.getElementById('esc-estado').value     = e.estado;
+  document.getElementById('esc-email').value      = e.director||'';
+  document.getElementById('esc-vencimiento').value= e.vencimiento||'';
+  document.getElementById('modal-titulo-escuela').textContent = 'Editar escuela';
+  document.getElementById('modal-escuela-ov').classList.add('open');
+}
+
+function guardarEscuela() {
+  const nombre = document.getElementById('esc-nombre').value.trim();
+  const cct    = document.getElementById('esc-cct').value.trim();
+  if (!nombre || !cct) { const t=document.getElementById('toast'); if(t){t.textContent='⚠️ Nombre y CCT son obligatorios';t.className='show';setTimeout(()=>t.className='',3000);} return; }
+  const nueva = {
+    id:          Date.now(),
+    nombre,
+    cct,
+    plan:        document.getElementById('esc-plan').value,
+    estado:      document.getElementById('esc-estado').value,
+    vencimiento: document.getElementById('esc-vencimiento').value,
+    mrr:         { basico:199,estandar:399,premium:699,trial:0 }[document.getElementById('esc-plan').value]||0,
+    director:    document.getElementById('esc-email').value,
+  };
+  ESCUELAS.push(nueva);
+  calcularKPIs();
+  renderTablaEscuelas();
+  document.getElementById('modal-escuela-ov').classList.remove('open');
+
+  // Intentar guardar en Supabase
+  fetch(`${SB_URL}/rest/v1/escuelas`, {
+    method: 'POST',
+    headers: { apikey:SB_KEY, Authorization:`Bearer ${SB_KEY}`, 'Content-Type':'application/json', Prefer:'return=minimal' },
+    body: JSON.stringify({
+      nombre, cct,
+      plan_suscripcion: nueva.plan,
+      estado_suscripcion: nueva.estado,
+      fecha_vencimiento: nueva.vencimiento,
+    })
+  }).catch(()=>{});
+}
+
+function reactivarEscuela(id) {
+  const e = ESCUELAS.find(x => x.id === id);
+  if (!e) return;
+  if (!confirm(`¿Reactivar ${e.nombre}?`)) return;
+  e.estado = 'activa';
+  const d = new Date(); d.setMonth(d.getMonth()+1);
+  e.vencimiento = d.toISOString().split('T')[0];
+  calcularKPIs(); renderTablaEscuelas();
+}
+
+function suspenderEscuela(id) {
+  const e = ESCUELAS.find(x => x.id === id);
+  if (!e) return;
+  if (!confirm(`¿Suspender acceso a ${e.nombre}?`)) return;
+  e.estado = 'suspendida';
+  calcularKPIs(); renderTablaEscuelas();
+}
+
+function editarPlan(plan) {
+  // Abre el modal de cobro con el plan preseleccionado pero sin escuela
+  // → útil para probar el flujo desde la vista de planes
+  abrirModalCobro(null, plan);
+}
+
+function exportarHistorial() {
+  const filas = HISTORIAL_REAL.length ? HISTORIAL_REAL : HISTORIAL_DEMO;
+  const csv = ['Fecha,Escuela,Plan,Monto,Método,Estado',
+    ...filas.map(h => `${h.fecha},"${h.escuela}",${h.plan},${h.monto},${h.metodo},${h.estado}`)
+  ].join('\n');
+  const blob = new Blob([csv], { type:'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'historial-pagos-siembra.csv';
+  a.click();
+}
+
+// ══════════════════════════════════════════════════════════════
+// INTEGRACIÓN CONEKTA — Pasarela de pagos real
+// ══════════════════════════════════════════════════════════════
+
+// URL base de las Edge Functions (mismo proyecto Supabase)
+const EDGE_URL = SB_URL + '/functions/v1';
+
+// Historial real cargado desde DB (se llena en cargarHistorialReal)
+let HISTORIAL_REAL = [];
+
+// ── Abrir modal de cobro ───────────────────────────────────────
+function abrirModalCobro(escuelaId = null, planId = 'estandar') {
+  // Poblar select de escuelas
+  const sel = document.getElementById('cobro-escuela-sel');
+  sel.innerHTML = '<option value="">— Seleccionar escuela —</option>' +
+    ESCUELAS.filter(e => e.estado !== 'cancelada')
+      .map(e => `<option value="${e.id}" ${e.id == escuelaId ? 'selected' : ''}>${e.nombre}</option>`)
+      .join('');
+
+  // Plan preseleccionado
+  const planSel = document.getElementById('cobro-plan-sel');
+  if (planSel) planSel.value = planId;
+
+  // Reset UI
+  document.getElementById('cobro-resultado').style.display = 'none';
+  document.getElementById('cobro-btn').disabled = false;
+  document.getElementById('cobro-btn').textContent = '💳 Generar cobro';
+  document.getElementById('cobro-error').style.display = 'none';
+
+  document.getElementById('modal-cobro-ov').classList.add('open');
+}
+
+// ── Ejecutar cobro vía Edge Function ──────────────────────────
+async function ejecutarCobro() {
+  const escuelaId = document.getElementById('cobro-escuela-sel').value;
+  const planId    = document.getElementById('cobro-plan-sel').value;
+  const metodo    = document.querySelector('input[name="cobro-metodo"]:checked')?.value || 'card';
+  const errEl     = document.getElementById('cobro-error');
+  const btn       = document.getElementById('cobro-btn');
+  const resultEl  = document.getElementById('cobro-resultado');
+
+  errEl.style.display = 'none';
+  if (!escuelaId) { mostrarErrCobro('Selecciona una escuela'); return; }
+  if (!planId)    { mostrarErrCobro('Selecciona un plan'); return; }
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Procesando…';
+
+  try {
+    // Obtener JWT del admin actual (guardado al cargar la página)
+    const jwt = window._adminJWT;
+    if (!jwt) throw new Error('Sesión no disponible. Recarga e inicia sesión.');
+
+    const res = await fetch(`${EDGE_URL}/conekta-checkout`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${jwt}`,
+      },
+      body: JSON.stringify({ escuela_id: escuelaId, plan_id: planId, metodo }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || !data.ok) {
+      throw new Error(data.error || 'Error al crear el cobro');
+    }
+
+    // ── Mostrar resultado según método ──────────────────────────
+    let html = '';
+
+    if (metodo === 'card' && data.checkout_id) {
+      // Tarjeta: mostrar link de pago (Conekta Hosted Checkout)
+      const checkoutUrl = `https://pay.conekta.com/checkout/${data.checkout_id}`;
+      html = `
+        <div style="text-align:center;">
+          <div style="font-size:32px;margin-bottom:8px;">💳</div>
+          <div style="font-weight:700;margin-bottom:4px;">Link de pago generado</div>
+          <div style="font-size:12px;color:#64748b;margin-bottom:12px;">Plan ${data.plan_nombre} — $${data.monto_mxn} MXN/mes</div>
+          <a href="${checkoutUrl}" target="_blank"
+            style="display:inline-block;padding:10px 20px;background:#0d5c2f;color:white;border-radius:9px;font-weight:700;font-size:13px;text-decoration:none;">
+            Abrir link de pago →
+          </a>
+          <div style="font-size:11px;color:#94a3b8;margin-top:8px;">Copiar y enviar al director de la escuela</div>
+          <input type="text" value="${checkoutUrl}" readonly
+            style="width:100%;margin-top:8px;padding:7px 10px;border:1px solid #e2e8f0;border-radius:7px;font-size:11px;color:#475569;"
+            onclick="this.select();document.execCommand('copy');mostrarToast('✅ Link copiado')">
+        </div>`;
+
+    } else if (metodo === 'oxxo' && data.referencia_oxxo) {
+      html = `
+        <div style="text-align:center;">
+          <div style="font-size:32px;margin-bottom:8px;">🏪</div>
+          <div style="font-weight:700;margin-bottom:4px;">Referencia OXXO generada</div>
+          <div style="font-size:12px;color:#64748b;margin-bottom:12px;">Plan ${data.plan_nombre} — $${data.monto_mxn} MXN</div>
+          <div style="font-size:24px;font-weight:900;letter-spacing:3px;padding:12px;background:#f1f5f9;border-radius:9px;margin-bottom:8px;">
+            ${data.referencia_oxxo}
+          </div>
+          <div style="font-size:11px;color:#94a3b8;">Válida 72 horas · Pagar en cualquier OXXO</div>
+        </div>`;
+
+    } else if (metodo === 'spei' && data.clabe_spei) {
+      html = `
+        <div style="text-align:center;">
+          <div style="font-size:32px;margin-bottom:8px;">🏦</div>
+          <div style="font-weight:700;margin-bottom:4px;">CLABE para transferencia SPEI</div>
+          <div style="font-size:12px;color:#64748b;margin-bottom:12px;">Plan ${data.plan_nombre} — $${data.monto_mxn} MXN</div>
+          <div style="font-size:18px;font-weight:900;letter-spacing:2px;padding:12px;background:#f1f5f9;border-radius:9px;margin-bottom:8px;">
+            ${data.clabe_spei}
+          </div>
+          <div style="font-size:11px;color:#94a3b8;">Válida 7 días · Banco: STP · Concepto: SIEMBRA-${data.pago_id?.slice(-8).toUpperCase()}</div>
+        </div>`;
+    } else {
+      // Pago procesado sin datos adicionales (ej. tarjeta sin hosted checkout)
+      html = `
+        <div style="text-align:center;">
+          <div style="font-size:32px;margin-bottom:8px;">✅</div>
+          <div style="font-weight:700;">Cobro iniciado correctamente</div>
+          <div style="font-size:12px;color:#64748b;margin-top:4px;">ID: ${data.pago_id}</div>
+        </div>`;
+    }
+
+    resultEl.innerHTML = html;
+    resultEl.style.display = 'block';
+    btn.textContent = '✅ Cobro generado';
+
+    // Recargar historial y KPIs
+    await cargarHistorialReal();
+    await cargarDeSupabase();
+
+  } catch (e) {
+    mostrarErrCobro(e.message || 'Error desconocido');
+    btn.disabled = false;
+    btn.textContent = '💳 Generar cobro';
+  }
+}
+
+function mostrarErrCobro(msg) {
+  const el = document.getElementById('cobro-error');
+  el.textContent = '❌ ' + msg;
+  el.style.display = 'block';
+}
+
+function mostrarToast(msg) {
+  const t = document.createElement('div');
+  t.textContent = msg;
+  t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#0d5c2f;color:white;padding:10px 20px;border-radius:20px;font-size:13px;font-weight:700;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.2)';
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2500);
+}
+
+// ── Cargar historial real desde Supabase ───────────────────────
+async function cargarHistorialReal() {
+  try {
+    const data = await sbFetch('pagos',
+      '?select=creado_at,escuela_nombre,plan_id,monto_mxn,metodo,estado&order=creado_at.desc&limit=50'
+    );
+    if (!Array.isArray(data) || !data.length) return;
+
+    const PLANES_NOMBRE = { basico:'Básico', estandar:'Estándar', premium:'Premium' };
+    HISTORIAL_REAL = data.map(p => ({
+      fecha:   p.creado_at?.split('T')[0] || '—',
+      escuela: p.escuela_nombre || '—',
+      plan:    PLANES_NOMBRE[p.plan_id] || p.plan_id || '—',
+      monto:   '$' + (p.monto_mxn || 0),
+      metodo:  ({ card:'Tarjeta', oxxo:'OXXO', spei:'SPEI' }[p.metodo] || p.metodo),
+      estado:  p.estado,
+    }));
+
+    // Re-renderizar si la tab de historial está activa
+    if (tabActual === 'historial') renderHistorial();
+  } catch(e) {
+    console.warn('[billing] historial real:', e.message);
+  }
+}
+
+// Sobrescribir renderHistorial para preferir datos reales
+const _renderHistorialOriginal = renderHistorial;
+// (renderHistorial ya está definida arriba, la extendemos aquí)
+function renderHistorial() {
+  const filas = HISTORIAL_REAL.length ? HISTORIAL_REAL : HISTORIAL_DEMO;
+  const ESTADO_BADGE = {
+    pagado:      '<span style="background:#dcfce7;color:#166534;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:700;">Pagado</span>',
+    fallido:     '<span style="background:#fee2e2;color:#991b1b;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:700;">Fallido</span>',
+    pendiente:   '<span style="background:#fef9c3;color:#92400e;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:700;">Pendiente</span>',
+    reembolsado: '<span style="background:#f3e8ff;color:#6b21a8;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:700;">Reembolso</span>',
+  };
+  const tb = document.getElementById('tabla-historial');
+  if (!tb) return;
+  tb.innerHTML = filas.map(h =>
+    `<tr>
+      <td>${h.fecha}</td>
+      <td>${h.escuela}</td>
+      <td>${h.plan}</td>
+      <td style="font-weight:700">${h.monto}</td>
+      <td>${h.metodo}</td>
+      <td>${ESTADO_BADGE[h.estado] || h.estado}</td>
+    </tr>`
+  ).join('') || '<tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:20px;">Sin registros de pago</td></tr>';
+}
+
+// Extender cargarDeSupabase para también cargar historial real
+const _cargarDeSupabaseOriginal = cargarDeSupabase;
+async function cargarDeSupabase() {
+  await _cargarDeSupabaseOriginal();
+  await cargarHistorialReal();
+}
+
+// Recuperar JWT del superadmin desde la URL (sa.html lo pasa como parámetro)
+(function _initJWT() {
+  try {
+    const params = new URLSearchParams(location.search);
+    const tokenParam = params.get('token');
+    if (tokenParam) {
+      window._adminJWT = tokenParam;
+      history.replaceState({}, '', location.pathname); // limpiar URL
+    } else {
+      // Fallback: leer desde sessionStorage (si viene de sa.html en mismo origen)
+      window._adminJWT = sessionStorage.getItem('siembra_admin_jwt') || null;
+    }
+  } catch(e) {}
+})();
+
+</script>
+
+<!-- ══ MODAL DE COBRO ══════════════════════════════════════════ -->
+<div class="modal-ov" id="modal-cobro-ov" onclick="this.classList.remove('open')">
+  <div class="modal" onclick="event.stopPropagation()" style="max-width:480px;">
+    <h3 style="margin-bottom:16px;">💳 Generar cobro</h3>
+
+    <div class="form-group">
+      <label>Escuela</label>
+      <select id="cobro-escuela-sel" style="width:100%;padding:9px 12px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;">
+        <option value="">— Seleccionar escuela —</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Plan a cobrar</label>
+      <select id="cobro-plan-sel" style="width:100%;padding:9px 12px;border:1.5px solid var(--gris-200);border-radius:8px;font-size:13px;">
+        <option value="basico">Básico — $199 MXN/mes</option>
+        <option value="estandar" selected>Estándar — $399 MXN/mes</option>
+        <option value="premium">Premium — $699 MXN/mes</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Método de pago</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">
+        <label style="display:flex;align-items:center;gap:6px;padding:9px 14px;border:1.5px solid var(--gris-200);border-radius:9px;cursor:pointer;font-size:13px;flex:1;">
+          <input type="radio" name="cobro-metodo" value="card" checked> 💳 Tarjeta
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;padding:9px 14px;border:1.5px solid var(--gris-200);border-radius:9px;cursor:pointer;font-size:13px;flex:1;">
+          <input type="radio" name="cobro-metodo" value="oxxo"> 🏪 OXXO
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;padding:9px 14px;border:1.5px solid var(--gris-200);border-radius:9px;cursor:pointer;font-size:13px;flex:1;">
+          <input type="radio" name="cobro-metodo" value="spei"> 🏦 SPEI
+        </label>
+      </div>
+    </div>
+
+    <div id="cobro-error" style="color:#dc2626;font-size:12px;margin-bottom:10px;display:none;padding:8px;background:#fef2f2;border-radius:7px;"></div>
+
+    <!-- Resultado (referencia OXXO, CLABE SPEI, o link de tarjeta) -->
+    <div id="cobro-resultado" style="display:none;padding:16px;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:12px;margin-bottom:14px;"></div>
+
+    <div style="display:flex;justify-content:flex-end;gap:8px;">
+      <button class="btn btn-outline" onclick="document.getElementById('modal-cobro-ov').classList.remove('open')">Cerrar</button>
+      <button class="btn btn-primary" id="cobro-btn" onclick="ejecutarCobro()">💳 Generar cobro</button>
+    </div>
+
+    <div style="margin-top:12px;font-size:11px;color:#94a3b8;text-align:center;">
+      Procesado vía <strong>Conekta</strong> · Sandbox activo en desarrollo
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

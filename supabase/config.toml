@@ -1,0 +1,49 @@
+project_id = "siembra"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[studio]
+enabled = true
+port = 54323
+
+[inbucket]
+enabled = true
+port = 54324
+
+[storage]
+enabled = true
+file_size_limit = "50MiB"
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = [
+  "http://localhost:3000",
+  "http://localhost:3000/index.html",
+  "http://localhost:3000/alumno.html",
+  "http://localhost:3000/padres.html"
+]
+jwt_expiry = 3600
+enable_signup = true
+
+[functions.ai-router]
+verify_jwt = true
+
+[functions.invite-user]
+verify_jwt = true
+
+[functions.conekta-checkout]
+verify_jwt = true
+
+[functions.conekta-webhook]
+verify_jwt = false

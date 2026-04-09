@@ -1,0 +1,1333 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SIEMBRA · Admin Central</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,700;1,9..144,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+   <script src="siembra-services.js"></script>
+<script src="app/core/sa-utils.js"></script>
+<script src="app/core/sa-auth.js"></script>
+<script src="app/core/sa-migrations.js"></script>
+<script src="app/core/sa-checklist.js"></script>
+<script src="app/core/sa-data.js"></script>
+<script src="app/core/sa-escuelas.js"></script>
+<script src="app/core/sa-actividad.js"></script>
+<script src="app/core/sa-modal-inv.js"></script>
+<style>
+/* ═══════════════════════════════════════════
+   SIEMBRA SUPERADMIN — Control Room Dark
+   ═══════════════════════════════════════════ */
+:root {
+  --bg:        #080c10;
+  --bg2:       #0d1318;
+  --bg3:       #121920;
+  --bg4:       #1a2330;
+  --border:    rgba(255,255,255,.07);
+  --border2:   rgba(255,255,255,.13);
+  --text:      #e2e8f0;
+  --text2:     #7d8fa3;
+  --text3:     #4a5a6e;
+  --green:     #22c55e;
+  --green-d:   #16a34a;
+  --green-dim: rgba(34,197,94,.12);
+  --amber:     #f59e0b;
+  --amber-dim: rgba(245,158,11,.12);
+  --red:       #ef4444;
+  --red-dim:   rgba(239,68,68,.12);
+  --blue:      #3b82f6;
+  --blue-dim:  rgba(59,130,246,.12);
+  --cyan:      #06b6d4;
+  --mono:      'JetBrains Mono', monospace;
+  --sans:      'DM Sans', sans-serif;
+  --serif:     'Fraunces', serif;
+  --r:         8px;
+  --r-lg:      12px;
+}
+
+*{margin:0;padding:0;box-sizing:border-box;}
+*::-webkit-scrollbar{width:4px;height:4px;}
+*::-webkit-scrollbar-track{background:transparent;}
+*::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:2px;}
+
+html,body{min-height:100vh;font-family:var(--sans);background:var(--bg);color:var(--text);overflow-x:hidden;}
+
+/* ── LOGIN ── */
+#login-screen {
+  min-height:100vh;display:flex;align-items:center;justify-content:center;
+  background:var(--bg);position:relative;overflow:hidden;
+}
+#login-screen::before {
+  content:'';position:absolute;inset:0;
+  background:
+    radial-gradient(ellipse 60% 50% at 20% 50%, rgba(34,197,94,.06) 0%,transparent 60%),
+    radial-gradient(ellipse 40% 60% at 80% 30%, rgba(6,182,212,.04) 0%,transparent 60%);
+  pointer-events:none;
+}
+.login-grid {
+  position:absolute;inset:0;
+  background-image:
+    linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);
+  background-size:40px 40px;
+  pointer-events:none;
+}
+.login-card {
+  width:100%;max-width:400px;padding:0 20px;position:relative;z-index:1;
+  animation:fadeUp .5s ease;
+}
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+.login-brand {
+  display:flex;align-items:center;gap:12px;margin-bottom:36px;
+}
+.login-brand-icon {
+  width:44px;height:44px;border-radius:10px;
+  background:var(--green-dim);border:1px solid rgba(34,197,94,.25);
+  display:flex;align-items:center;justify-content:center;font-size:20px;
+}
+.login-brand-name {
+  font-family:var(--serif);font-size:22px;color:var(--text);letter-spacing:.5px;
+}
+.login-brand-sub {
+  font-family:var(--mono);font-size:10px;color:var(--text3);letter-spacing:2px;
+  text-transform:uppercase;margin-top:1px;
+}
+.login-title {
+  font-family:var(--serif);font-size:28px;font-weight:700;
+  color:var(--text);margin-bottom:6px;line-height:1.2;
+}
+.login-sub {
+  font-size:13px;color:var(--text2);margin-bottom:28px;line-height:1.6;
+}
+.field {margin-bottom:14px;}
+.field label {
+  display:block;font-family:var(--mono);font-size:10px;
+  text-transform:uppercase;letter-spacing:1.5px;
+  color:var(--text3);margin-bottom:6px;
+}
+.field input {
+  width:100%;padding:11px 14px;background:var(--bg2);
+  border:1px solid var(--border2);border-radius:var(--r);
+  font-family:var(--sans);font-size:14px;color:var(--text);
+  outline:none;transition:.2s;
+}
+.field input:focus {border-color:var(--green);background:var(--bg3);}
+.field input::placeholder{color:var(--text3);}
+.btn-login {
+  width:100%;padding:13px;background:var(--green);color:#000;
+  border:none;border-radius:var(--r);font-family:var(--sans);
+  font-size:14px;font-weight:700;cursor:pointer;transition:.2s;
+  letter-spacing:.3px;margin-top:6px;
+}
+.btn-login:hover{background:#16a34a;}
+.btn-login:active{transform:scale(.98);}
+.login-error {
+  margin-bottom:12px;padding:10px 14px;
+  background:var(--red-dim);border:1px solid rgba(239,68,68,.3);
+  border-radius:var(--r);font-size:13px;color:#fca5a5;display:none;
+}
+.login-badge {
+  display:inline-flex;align-items:center;gap:6px;
+  padding:4px 10px;background:var(--bg3);border:1px solid var(--border2);
+  border-radius:99px;font-family:var(--mono);font-size:10px;color:var(--text3);
+  margin-top:20px;
+}
+.badge-dot {width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* ── APP SHELL ── */
+#app {display:none;min-height:100vh;flex-direction:column;}
+
+/* ── TOP BAR ── */
+.topbar {
+  height:54px;background:var(--bg2);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 20px;gap:16px;
+  position:sticky;top:0;z-index:100;
+}
+.topbar-brand {
+  font-family:var(--serif);font-size:18px;color:var(--text);
+  display:flex;align-items:center;gap:10px;
+}
+.topbar-brand-dot {
+  width:8px;height:8px;border-radius:50%;background:var(--green);
+  box-shadow:0 0 8px var(--green);
+}
+.topbar-label {
+  font-family:var(--mono);font-size:10px;letter-spacing:2px;
+  color:var(--text3);text-transform:uppercase;padding:3px 8px;
+  background:var(--bg3);border:1px solid var(--border);border-radius:4px;
+}
+.topbar-spacer{flex:1;}
+.topbar-user {
+  display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text2);
+}
+.topbar-avatar {
+  width:30px;height:30px;border-radius:50%;
+  background:var(--green-dim);border:1px solid rgba(34,197,94,.3);
+  display:flex;align-items:center;justify-content:center;
+  font-size:12px;font-weight:700;color:var(--green);font-family:var(--mono);
+}
+.topbar-logout {
+  padding:5px 10px;background:transparent;border:1px solid var(--border2);
+  border-radius:6px;font-family:var(--mono);font-size:11px;
+  color:var(--text2);cursor:pointer;transition:.15s;
+}
+.topbar-logout:hover{border-color:var(--red);color:var(--red);}
+
+/* ── LAYOUT ── */
+.layout {display:flex;flex:1;min-height:calc(100vh - 54px);}
+
+/* ── SIDEBAR ── */
+.sidebar {
+  width:220px;background:var(--bg2);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;padding:16px 10px;flex-shrink:0;
+}
+.nav-section-label {
+  font-family:var(--mono);font-size:9px;letter-spacing:2px;
+  text-transform:uppercase;color:var(--text3);
+  padding:4px 10px;margin-bottom:4px;margin-top:14px;
+}
+.nav-section-label:first-child{margin-top:0;}
+.nav-btn {
+  display:flex;align-items:center;gap:9px;width:100%;padding:8px 10px;
+  background:transparent;border:none;border-radius:6px;
+  font-family:var(--sans);font-size:13px;color:var(--text2);
+  cursor:pointer;transition:.15s;text-align:left;position:relative;
+}
+.nav-btn:hover{background:var(--bg3);color:var(--text);}
+.nav-btn.active {
+  background:var(--green-dim);color:var(--green);
+  border-left:2px solid var(--green);padding-left:8px;
+}
+.nav-btn .ni{
+  width:16px;text-align:center;font-size:14px;flex-shrink:0;
+}
+.nav-badge {
+  margin-left:auto;background:var(--red);color:white;
+  font-family:var(--mono);font-size:10px;font-weight:700;
+  padding:1px 6px;border-radius:99px;min-width:18px;text-align:center;
+}
+.nav-badge.green{background:var(--green);}
+
+/* ── MAIN CONTENT ── */
+.main {flex:1;overflow-y:auto;background:var(--bg);}
+.page {display:none;padding:24px;animation:fadeIn .2s ease;}
+.page.active{display:block;}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+
+/* ── PAGE HEADER ── */
+.page-header {
+  display:flex;align-items:flex-start;justify-content:space-between;
+  margin-bottom:24px;flex-wrap:wrap;gap:12px;
+}
+.page-title {
+  font-family:var(--serif);font-size:24px;color:var(--text);
+  font-weight:700;margin-bottom:3px;
+}
+.page-sub {font-size:13px;color:var(--text2);}
+
+/* ── STAT CARDS ── */
+.stats-grid {
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));
+  gap:12px;margin-bottom:24px;
+}
+.stat-card {
+  background:var(--bg2);border:1px solid var(--border);border-radius:var(--r-lg);
+  padding:16px 18px;transition:.2s;
+}
+.stat-card:hover{border-color:var(--border2);}
+.stat-top {
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:10px;
+}
+.stat-label {
+  font-family:var(--mono);font-size:10px;letter-spacing:1px;
+  text-transform:uppercase;color:var(--text3);
+}
+.stat-icon{font-size:16px;}
+.stat-val {
+  font-family:var(--serif);font-size:30px;font-weight:700;color:var(--text);
+  line-height:1;
+}
+.stat-delta {
+  font-family:var(--mono);font-size:11px;margin-top:5px;
+}
+.delta-up{color:var(--green);}
+.delta-neutral{color:var(--text3);}
+
+/* ── PANEL ── */
+.panel {
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:var(--r-lg);margin-bottom:16px;overflow:hidden;
+}
+.panel-header {
+  padding:14px 18px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;
+}
+.panel-title {
+  font-family:var(--mono);font-size:11px;letter-spacing:1.5px;
+  text-transform:uppercase;color:var(--text2);
+  display:flex;align-items:center;gap:8px;
+}
+.panel-body{padding:18px;}
+
+/* ── TABLE ── */
+.tbl-wrap{overflow-x:auto;}
+table.tbl {
+  width:100%;border-collapse:collapse;font-size:13px;
+}
+table.tbl th {
+  text-align:left;padding:9px 14px;
+  font-family:var(--mono);font-size:10px;letter-spacing:1px;
+  text-transform:uppercase;color:var(--text3);
+  border-bottom:1px solid var(--border);white-space:nowrap;
+}
+table.tbl td {
+  padding:11px 14px;border-bottom:1px solid var(--border);
+  color:var(--text);vertical-align:middle;
+}
+table.tbl tr:last-child td{border-bottom:none;}
+table.tbl tr:hover td{background:var(--bg3);}
+.tbl-mono{font-family:var(--mono);font-size:12px;color:var(--text2);}
+
+/* ── BADGES ── */
+.badge {
+  display:inline-flex;align-items:center;gap:4px;
+  padding:3px 8px;border-radius:4px;
+  font-family:var(--mono);font-size:11px;font-weight:500;
+}
+.badge-green {background:var(--green-dim);color:var(--green);}
+.badge-amber {background:var(--amber-dim);color:var(--amber);}
+.badge-red   {background:var(--red-dim);color:#fca5a5;}
+.badge-blue  {background:var(--blue-dim);color:#93c5fd;}
+.badge-gray  {background:var(--bg3);color:var(--text3);}
+.badge-dot2  {width:5px;height:5px;border-radius:50%;background:currentColor;}
+
+/* ── BUTTONS ── */
+.btn {
+  padding:8px 14px;border-radius:var(--r);
+  font-family:var(--sans);font-size:13px;font-weight:500;
+  cursor:pointer;transition:.15s;border:1px solid transparent;
+  display:inline-flex;align-items:center;gap:6px;
+}
+.btn-primary {background:var(--green);color:#000;border-color:var(--green);}
+.btn-primary:hover{background:#16a34a;}
+.btn-outline {background:transparent;color:var(--text2);border-color:var(--border2);}
+.btn-outline:hover{border-color:var(--border2);color:var(--text);background:var(--bg3);}
+.btn-danger  {background:var(--red-dim);color:#fca5a5;border-color:rgba(239,68,68,.3);}
+.btn-danger:hover{background:rgba(239,68,68,.2);}
+.btn-sm{padding:5px 10px;font-size:12px;}
+
+/* ── FORM ELEMENTS ── */
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
+.form-row.cols-3{grid-template-columns:1fr 1fr 1fr;}
+.form-group{margin-bottom:12px;}
+.form-group label {
+  display:block;font-family:var(--mono);font-size:10px;
+  letter-spacing:1.5px;text-transform:uppercase;
+  color:var(--text3);margin-bottom:6px;
+}
+.form-group input, .form-group select, .form-group textarea {
+  width:100%;padding:9px 12px;background:var(--bg3);
+  border:1px solid var(--border2);border-radius:var(--r);
+  font-family:var(--sans);font-size:13px;color:var(--text);
+  outline:none;transition:.15s;
+}
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+  border-color:var(--green);
+}
+.form-group select option{background:var(--bg3);}
+.form-group textarea{resize:vertical;min-height:80px;}
+
+/* ── MODAL ── */
+.modal-overlay {
+  position:fixed;inset:0;background:rgba(0,0,0,.7);
+  z-index:500;display:none;align-items:center;justify-content:center;
+  padding:20px;
+}
+.modal-overlay.open{display:flex;}
+.modal {
+  background:var(--bg2);border:1px solid var(--border2);
+  border-radius:var(--r-lg);width:100%;max-width:540px;
+  max-height:90vh;overflow-y:auto;
+  animation:modalIn .2s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes modalIn{from{opacity:0;transform:scale(.95) translateY(8px)}to{opacity:1;transform:none}}
+.modal-head {
+  padding:18px 22px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.modal-title{font-family:var(--serif);font-size:18px;color:var(--text);}
+.modal-close {
+  width:28px;height:28px;border-radius:6px;background:var(--bg3);
+  border:1px solid var(--border);color:var(--text2);
+  cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;
+}
+.modal-close:hover{color:var(--red);border-color:rgba(239,68,68,.3);}
+.modal-body{padding:20px 22px;}
+.modal-foot {
+  padding:14px 22px;border-top:1px solid var(--border);
+  display:flex;justify-content:flex-end;gap:8px;
+}
+
+/* ── TOAST ── */
+#toast {
+  position:fixed;bottom:20px;right:20px;
+  background:var(--bg3);border:1px solid var(--border2);
+  color:var(--text);padding:11px 16px;border-radius:var(--r);
+  font-size:13px;font-family:var(--sans);
+  box-shadow:0 8px 32px rgba(0,0,0,.4);
+  z-index:9999;transform:translateY(60px);opacity:0;
+  transition:.3s cubic-bezier(.34,1.56,.64,1);pointer-events:none;
+  max-width:320px;
+}
+#toast.show{transform:translateY(0);opacity:1;}
+#toast.ok{border-left:3px solid var(--green);}
+#toast.err{border-left:3px solid var(--red);}
+
+/* ── INVITE CARD ── */
+.invite-card {
+  background:var(--bg3);border:1px solid var(--border2);
+  border-radius:var(--r);padding:14px 16px;
+  display:flex;align-items:center;gap:12px;margin-bottom:8px;
+}
+.invite-token {
+  font-family:var(--mono);font-size:12px;color:var(--cyan);
+  flex:1;word-break:break-all;
+}
+.invite-meta{font-size:11px;color:var(--text3);margin-top:3px;}
+
+/* ── ACTIVITY FEED ── */
+.activity-item {
+  display:flex;gap:12px;padding:10px 0;
+  border-bottom:1px solid var(--border);
+}
+.activity-item:last-child{border-bottom:none;}
+.activity-dot {
+  width:8px;height:8px;border-radius:50%;
+  background:var(--green-dim);border:1px solid var(--green);
+  flex-shrink:0;margin-top:5px;
+}
+.activity-dot.amber{background:var(--amber-dim);border-color:var(--amber);}
+.activity-dot.blue{background:var(--blue-dim);border-color:var(--blue);}
+.activity-text{font-size:13px;color:var(--text);line-height:1.5;}
+.activity-time{font-family:var(--mono);font-size:11px;color:var(--text3);margin-top:2px;}
+
+/* ── METER BAR ── */
+.meter{height:4px;background:var(--bg4);border-radius:2px;overflow:hidden;margin-top:6px;}
+.meter-fill{height:100%;border-radius:2px;transition:.4s;}
+
+/* ── QR PLACEHOLDER ── */
+.qr-box {
+  width:120px;height:120px;background:white;
+  border-radius:8px;display:flex;align-items:center;
+  justify-content:center;margin:0 auto;
+  font-size:10px;color:#666;text-align:center;padding:10px;
+}
+
+/* ── SEARCH ── */
+.search-bar {
+  display:flex;align-items:center;gap:8px;
+  background:var(--bg3);border:1px solid var(--border2);
+  border-radius:var(--r);padding:7px 12px;
+}
+.search-bar input {
+  background:transparent;border:none;outline:none;
+  font-family:var(--sans);font-size:13px;color:var(--text);flex:1;
+}
+.search-bar input::placeholder{color:var(--text3);}
+
+/* ── SQL PILL ── */
+.sql-note {
+  font-family:var(--mono);font-size:11px;color:var(--text3);
+  background:var(--bg3);border:1px solid var(--border);
+  border-radius:4px;padding:10px 14px;margin-bottom:16px;
+  line-height:1.8;white-space:pre-wrap;
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════ LOGIN ══════════════════ -->
+<div id="login-screen">
+  <div class="login-grid"></div>
+  <div class="login-card">
+    <div class="login-brand">
+      <div class="login-brand-icon">🌱</div>
+      <div>
+        <div class="login-brand-name">SIEMBRA</div>
+        <div class="login-brand-sub">Admin Central</div>
+      </div>
+    </div>
+    <div class="login-title">Acceso restringido</div>
+    <div class="login-sub">Solo para el equipo operador de SIEMBRA. Este panel no es para directores ni docentes.</div>
+    <div class="login-error" id="login-error"></div>
+    <div class="field">
+      <label>Correo</label>
+      <input type="email" id="login-email" placeholder="admin@siembra.mx" autocomplete="email">
+    </div>
+    <div class="field">
+      <label>Contraseña</label>
+      <input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <button class="btn-login" onclick="doLogin()" id="login-btn">Entrar →</button>
+    <div style="margin-top:16px;text-align:center;">
+      <div class="login-badge">
+        <div class="badge-dot"></div>
+        <span>Conexión cifrada · Supabase Auth</span>
+      </div>
+    </div>
+    <div style="margin-top:20px;padding-top:18px;border-top:1px solid rgba(255,255,255,.07);text-align:center;">
+<div style="font-family:var(--mono);font-size:10px;color:var(--text3);letter-spacing:1px;margin-bottom:10px;">MODO DEMO - SIN SUPABASE</div>
+      <button onclick="entrarDemo()" style="width:100%;padding:11px;background:transparent;border:1px solid rgba(34,197,94,.3);border-radius:var(--r);font-family:var(--sans);font-size:13px;font-weight:600;color:var(--green);cursor:pointer;" onmouseover="this.style.background='rgba(34,197,94,.08)'" onmouseout="this.style.background='transparent'">
+        Entrar con datos de ejemplo &rarr;
+      </button>
+      <div style="font-size:11px;color:var(--text3);margin-top:8px;">3 escuelas · 5 usuarios · todas las secciones</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════ APP ══════════════════ -->
+<div id="app" style="display:none;flex-direction:column;">
+
+  <!-- Top bar -->
+  <div class="topbar">
+    <div class="topbar-brand">
+      <div class="topbar-brand-dot"></div>
+      SIEMBRA
+    </div>
+    <div class="topbar-label">ADMIN CENTRAL</div>
+    <div class="topbar-spacer"></div>
+    <div class="topbar-user">
+      <div class="topbar-avatar" id="tb-initials">SA</div>
+      <span id="tb-email" style="font-size:12px;"></span>
+      <button class="topbar-logout" onclick="doLogout()">Salir</button>
+    </div>
+  </div>
+
+  <div class="layout">
+
+    <!-- Sidebar -->
+    <nav class="sidebar">
+      <div class="nav-section-label">Principal</div>
+      <button class="nav-btn active" onclick="navTo('dashboard')" id="nav-dashboard">
+        <span class="ni">▦</span> Dashboard
+      </button>
+      <button class="nav-btn" onclick="navTo('escuelas')" id="nav-escuelas">
+        <span class="ni">🏫</span> Escuelas
+        <span class="nav-badge green" id="nav-cnt-escuelas">0</span>
+      </button>
+
+      <div class="nav-section-label">Gestión</div>
+      <button class="nav-btn" onclick="navTo('usuarios')" id="nav-usuarios">
+        <span class="ni">👥</span> Usuarios globales
+      </button>
+      <button class="nav-btn" onclick="navTo('invitaciones')" id="nav-invitaciones">
+        <span class="ni">✉️</span> Invitaciones
+        <span class="nav-badge" id="nav-cnt-inv" style="display:none;">0</span>
+      </button>
+      <button class="nav-btn" onclick="navTo('nueva-escuela')" id="nav-nueva-escuela">
+        <span class="ni">＋</span> Nueva escuela
+      </button>
+
+      <div class="nav-section-label">Sistema</div>
+      <button class="nav-btn" onclick="navTo('actividad')" id="nav-actividad">
+        <span class="ni">◉</span> Actividad
+      </button>
+      <button class="nav-btn" onclick="navTo('config')" id="nav-config">
+        <span class="ni">⚙</span> Configuración
+      </button>
+      <button class="nav-btn" onclick="navTo('checklist')" id="nav-checklist" style="background:rgba(234,179,8,.12);border:1px solid rgba(234,179,8,.25);color:#92400e;">
+        <span class="ni">🚀</span> Checklist prod.
+        <span class="nav-badge" id="nav-badge-checklist" style="display:none;background:#dc2626;color:white;"></span>
+      </button>
+    </nav>
+
+    <!-- Main -->
+    <main class="main">
+
+      <!-- ══ DASHBOARD ══ -->
+      <div class="page active" id="page-dashboard">
+        <div class="page-header">
+          <div>
+            <div class="page-title">Centro de operaciones</div>
+            <div class="page-sub" id="dash-fecha"></div>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="cargarTodo()">⟳ Actualizar</button>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-top">
+              <div class="stat-label">Escuelas activas</div>
+              <div class="stat-icon">🏫</div>
+            </div>
+            <div class="stat-val" id="stat-escuelas">—</div>
+            <div class="stat-delta delta-neutral" id="stat-escuelas-d">cargando…</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-top">
+              <div class="stat-label">Total usuarios</div>
+              <div class="stat-icon">👥</div>
+            </div>
+            <div class="stat-val" id="stat-usuarios">—</div>
+            <div class="stat-delta delta-neutral" id="stat-usuarios-d">en todas las escuelas</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-top">
+              <div class="stat-label">Alumnos</div>
+              <div class="stat-icon">🎓</div>
+            </div>
+            <div class="stat-val" id="stat-alumnos">—</div>
+            <div class="stat-delta delta-up" id="stat-alumnos-d">rol alumno</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-top">
+              <div class="stat-label">Docentes</div>
+              <div class="stat-icon">📚</div>
+            </div>
+            <div class="stat-val" id="stat-docentes">—</div>
+            <div class="stat-delta delta-neutral">rol docente</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-top">
+              <div class="stat-label">Invit. pendientes</div>
+              <div class="stat-icon">✉️</div>
+            </div>
+            <div class="stat-val" id="stat-invites">—</div>
+            <div class="stat-delta delta-neutral">sin usar</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-top">
+              <div class="stat-label">Evidencias hoy</div>
+              <div class="stat-icon">📸</div>
+            </div>
+            <div class="stat-val" id="stat-evidencias">—</div>
+            <div class="stat-delta delta-up">subidas hoy</div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title">◎ Escuelas por estado</div>
+            </div>
+            <div class="panel-body" id="dash-escuelas-lista" style="padding:12px;">
+              <div style="color:var(--text3);font-size:13px;">Cargando…</div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title">◎ Actividad reciente</div>
+            </div>
+            <div class="panel-body" id="dash-actividad" style="padding:12px 18px;">
+              <div style="color:var(--text3);font-size:13px;">Cargando…</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ ESCUELAS ══ -->
+      <div class="page" id="page-escuelas">
+        <div class="page-header">
+          <div>
+            <div class="page-title">Escuelas</div>
+            <div class="page-sub">Todos los planteles registrados en SIEMBRA</div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <div class="search-bar" style="width:220px;">
+              <span style="color:var(--text3);font-size:13px;">⌕</span>
+              <input type="text" placeholder="Buscar escuela, CCT…" id="esc-search" oninput="filtrarEscuelas(this.value)">
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="navTo('nueva-escuela')">＋ Nueva escuela</button>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="tbl-wrap">
+            <table class="tbl">
+              <thead>
+                <tr>
+                  <th>Escuela</th>
+                  <th>CCT</th>
+                  <th>Director/a</th>
+                  <th>Municipio</th>
+                  <th>Nivel</th>
+                  <th>Usuarios</th>
+                  <th>Estado</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="esc-tbody">
+                <tr><td colspan="8" style="color:var(--text3);text-align:center;padding:32px;">Cargando…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ USUARIOS ══ -->
+      <div class="page" id="page-usuarios">
+        <div class="page-header">
+          <div>
+            <div class="page-title">Usuarios globales</div>
+            <div class="page-sub">Todos los usuarios de todas las escuelas</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <select id="usr-escuela-fil" onchange="filtrarUsuarios()" style="padding:7px 12px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--sans);font-size:13px;outline:none;">
+              <option value="">Todas las escuelas</option>
+            </select>
+            <select id="usr-rol-fil" onchange="filtrarUsuarios()" style="padding:7px 12px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--sans);font-size:13px;outline:none;">
+              <option value="">Todos los roles</option>
+              <option value="director">Director</option>
+              <option value="admin">Admin</option>
+              <option value="docente">Docente</option>
+              <option value="alumno">Alumno</option>
+              <option value="padre">Padre</option>
+              <option value="ts">Trab. social</option>
+              <option value="coordinador">Coordinador</option>
+              <option value="prefecto">Prefecto</option>
+              <option value="tutor">Tutor</option>
+            </select>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="tbl-wrap">
+            <table class="tbl">
+              <thead>
+                <tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Escuela</th><th>Creado</th><th>Estado</th></tr>
+              </thead>
+              <tbody id="usr-tbody">
+                <tr><td colspan="6" style="color:var(--text3);text-align:center;padding:32px;">Cargando…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ INVITACIONES ══ -->
+      <div class="page" id="page-invitaciones">
+        <div class="page-header">
+          <div>
+            <div class="page-title">Invitaciones</div>
+            <div class="page-sub">Tokens de acceso para directores y staff</div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="abrirModalInvitacion()">＋ Generar invitación</button>
+        </div>
+        <div class="panel">
+          <div class="tbl-wrap">
+            <table class="tbl">
+              <thead>
+                <tr><th>Token</th><th>Escuela</th><th>Rol</th><th>Email destino</th><th>Expira</th><th>Estado</th><th></th></tr>
+              </thead>
+              <tbody id="inv-tbody">
+                <tr><td colspan="7" style="color:var(--text3);text-align:center;padding:32px;">Cargando…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ NUEVA ESCUELA ══ -->
+      <div class="page" id="page-nueva-escuela">
+        <div class="page-header">
+          <div>
+            <div class="page-title">Alta de escuela nueva</div>
+            <div class="page-sub">Registra un plantel y genera la invitación para su director/a</div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 360px;gap:20px;align-items:start;">
+          <div class="panel">
+            <div class="panel-header"><div class="panel-title">◎ Datos del plantel</div></div>
+            <div class="panel-body">
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Nombre oficial</label>
+                  <input type="text" id="ne-nombre" placeholder="Nombre oficial del plantel">
+                </div>
+                <div class="form-group">
+                  <label>CCT</label>
+                  <input type="text" id="ne-cct" placeholder="19EPR0001A" style="text-transform:uppercase;" oninput="this.value=this.value.toUpperCase()">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Municipio</label>
+                  <input type="text" id="ne-municipio" placeholder="Guadalupe">
+                </div>
+                <div class="form-group">
+                  <label>Estado</label>
+                  <select id="ne-estado">
+                    <option value="">Seleccionar…</option>
+                    <option>Aguascalientes</option>
+                    <option>Baja California</option>
+                    <option>Baja California Sur</option>
+                    <option>Campeche</option>
+                    <option>CDMX</option>
+                    <option>Chiapas</option>
+                    <option>Chihuahua</option>
+                    <option>Coahuila</option>
+                    <option>Colima</option>
+                    <option>Durango</option>
+                    <option>Estado de México</option>
+                    <option>Guanajuato</option>
+                    <option>Guerrero</option>
+                    <option>Hidalgo</option>
+                    <option>Jalisco</option>
+                    <option>Michoacán</option>
+                    <option>Morelos</option>
+                    <option>Nayarit</option>
+                    <option>Nuevo León</option>
+                    <option>Oaxaca</option>
+                    <option>Puebla</option>
+                    <option>Querétaro</option>
+                    <option>Quintana Roo</option>
+                    <option>San Luis Potosí</option>
+                    <option>Sinaloa</option>
+                    <option>Sonora</option>
+                    <option>Tabasco</option>
+                    <option>Tamaulipas</option>
+                    <option>Tlaxcala</option>
+                    <option>Veracruz</option>
+                    <option>Yucatán</option>
+                    <option>Zacatecas</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Nivel educativo</label>
+                  <select id="ne-nivel">
+                    <option value="primaria">Primaria</option>
+                    <option value="secundaria">Secundaria</option>
+                    <option value="ambos">Primaria + Secundaria</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Límite de alumnos</label>
+                  <input type="number" id="ne-limite" value="500" min="1">
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>Plan de servicio</label>
+                <select id="ne-plan-tipo">
+                  <option value="basico">Básico</option>
+                  <option value="plus">Plus</option>
+                  <option value="premium">Premium</option>
+                </select>
+              </div>
+
+              <div style="height:1px;background:var(--border);margin:16px 0;"></div>
+              <div style="font-family:var(--mono);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin-bottom:12px;">Director / Administrador inicial</div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Nombre</label>
+                  <input type="text" id="ne-dir-nombre" placeholder="Ej: María González">
+                </div>
+                <div class="form-group">
+                  <label>Email</label>
+                  <input type="email" id="ne-dir-email" placeholder="director@escuela.edu.mx">
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Rol inicial</label>
+                <select id="ne-dir-rol">
+                  <option value="director">Director/a</option>
+                  <option value="admin">Administrador/a</option>
+                </select>
+              </div>
+
+              <div style="display:flex;gap:8px;margin-top:8px;">
+                <button class="btn btn-primary" onclick="crearEscuela()" id="ne-btn">
+                  Crear escuela y generar invitación →
+                </button>
+                <button class="btn btn-outline" onclick="limpiarFormEscuela()">Limpiar</button>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div class="panel" id="ne-result" style="display:none;">
+              <div class="panel-header"><div class="panel-title">✓ Escuela creada</div></div>
+              <div class="panel-body">
+                <div style="text-align:center;margin-bottom:16px;">
+                  <div class="qr-box" id="ne-qr-box">QR generándose…</div>
+                  <div style="font-size:11px;color:var(--text3);margin-top:8px;">El director escanea esto para registrarse</div>
+                </div>
+                <div style="font-family:var(--mono);font-size:11px;color:var(--text3);margin-bottom:6px;">Token de invitación</div>
+                <div style="font-family:var(--mono);font-size:13px;color:var(--cyan);padding:10px;background:var(--bg3);border-radius:6px;word-break:break-all;cursor:pointer;" id="ne-token-display" onclick="copiarToken()"></div>
+                <div style="font-size:11px;color:var(--text3);margin-top:6px;">Clic para copiar · expira en 7 días</div>
+                <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;">
+                  <button class="btn btn-outline btn-sm" style="flex:1;" onclick="copiarLinkInvitacion()">📋 Copiar link</button>
+          <button onclick="compartirWhatsApp()" style="padding:8px 14px;background:#25d366;color:white;border:none;border-radius:8px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;">
+            💬 WhatsApp
+          </button>
+          <button onclick="enviarEmailInvitacion()" style="padding:8px 14px;background:var(--blue);color:white;border:none;border-radius:8px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;">
+            ✉️ Email
+          </button>
+                  <button class="btn btn-outline btn-sm" style="flex:1;" onclick="imprimirInvitacion()">🖨 Imprimir QR</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-header"><div class="panel-title">◎ ¿Cómo funciona el alta?</div></div>
+              <div class="panel-body" style="font-size:13px;color:var(--text2);line-height:1.8;">
+                <div style="display:flex;flex-direction:column;gap:10px;">
+                  <div style="display:flex;gap:10px;"><span style="color:var(--green);font-family:var(--mono);">01</span><span>Llenas el formulario y creas la escuela en Supabase</span></div>
+                  <div style="display:flex;gap:10px;"><span style="color:var(--green);font-family:var(--mono);">02</span><span>Se genera un token único de invitación (7 días)</span></div>
+                  <div style="display:flex;gap:10px;"><span style="color:var(--green);font-family:var(--mono);">03</span><span>Envías el link o QR al director/a por WhatsApp o email</span></div>
+                  <div style="display:flex;gap:10px;"><span style="color:var(--green);font-family:var(--mono);">04</span><span>El director abre el hub, usa el token, y queda registrado con su escuela vinculada</span></div>
+                  <div style="display:flex;gap:10px;"><span style="color:var(--green);font-family:var(--mono);">05</span><span>Desde ahí el director invita a su staff y alumnos</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ ACTIVIDAD ══ -->
+      <div class="page" id="page-actividad">
+        <div class="page-header">
+          <div>
+            <div class="page-title">Actividad del sistema</div>
+            <div class="page-sub">Log de eventos, errores y salud del sistema</div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-outline btn-sm" onclick="actExportarLogs()">⬇ Exportar logs</button>
+            <button class="btn btn-outline btn-sm" onclick="cargarActividad()">⟳ Refrescar</button>
+          </div>
+        </div>
+
+        <!-- Tabs: Eventos / Errores / Salud -->
+        <div style="display:flex;gap:2px;background:var(--bg3);border-radius:8px;padding:3px;margin-bottom:16px;width:fit-content;">
+          <button id="act-tab-eventos" onclick="actTab('eventos')" style="padding:7px 14px;border:none;border-radius:6px;font-family:var(--mono);font-size:11px;font-weight:700;cursor:pointer;background:var(--green-dim);color:var(--green);letter-spacing:.5px;">◎ Eventos</button>
+          <button id="act-tab-errores" onclick="actTab('errores')" style="padding:7px 14px;border:none;border-radius:6px;font-family:var(--mono);font-size:11px;font-weight:500;cursor:pointer;background:transparent;color:var(--text2);letter-spacing:.5px;">⚠ Errores</button>
+          <button id="act-tab-salud"   onclick="actTab('salud')"   style="padding:7px 14px;border:none;border-radius:6px;font-family:var(--mono);font-size:11px;font-weight:500;cursor:pointer;background:transparent;color:var(--text2);letter-spacing:.5px;">♥ Salud</button>
+        </div>
+
+        <!-- Panel Eventos -->
+        <div id="act-panel-eventos">
+          <!-- Filtros rápidos -->
+          <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+            <select id="act-filtro-tipo" onchange="actFiltrar()" style="padding:7px 12px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--sans);font-size:12px;outline:none;">
+              <option value="">Todos los tipos</option>
+              <option value="escuela">Escuelas</option>
+              <option value="usuario">Usuarios</option>
+              <option value="invitacion">Invitaciones</option>
+              <option value="login">Accesos</option>
+              <option value="calificacion">Calificaciones</option>
+            </select>
+            <select id="act-filtro-escuela" onchange="actFiltrar()" style="padding:7px 12px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--sans);font-size:12px;outline:none;">
+              <option value="">Todas las escuelas</option>
+            </select>
+            <div style="margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--text3);" id="act-count-eventos">—</div>
+          </div>
+          <div class="panel">
+            <div class="panel-body" id="act-feed">
+              <div style="color:var(--text3);font-size:13px;">Cargando…</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Panel Errores -->
+        <div id="act-panel-errores" style="display:none;">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px;">
+            <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px;">
+              <div style="font-family:var(--mono);font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Errores hoy</div>
+              <div style="font-family:var(--serif);font-size:28px;font-weight:700;color:#fca5a5;" id="err-stat-hoy">0</div>
+            </div>
+            <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px;">
+              <div style="font-family:var(--mono);font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Errores semana</div>
+              <div style="font-family:var(--serif);font-size:28px;font-weight:700;color:var(--amber);" id="err-stat-semana">0</div>
+            </div>
+            <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px;">
+              <div style="font-family:var(--mono);font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Usuarios afectados</div>
+              <div style="font-family:var(--serif);font-size:28px;font-weight:700;color:var(--text);" id="err-stat-usuarios">0</div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title">⚠ Log de errores</div>
+              <button class="btn btn-outline btn-sm" onclick="actLimpiarErrores()">🗑 Limpiar resueltos</button>
+            </div>
+            <div class="tbl-wrap">
+              <table class="tbl">
+                <thead>
+                  <tr><th>Fecha</th><th>Tipo</th><th>Usuario</th><th>Escuela</th><th>Mensaje</th><th>Severidad</th><th></th></tr>
+                </thead>
+                <tbody id="err-tbody">
+                  <tr><td colspan="7" style="color:var(--text3);text-align:center;padding:32px;">Cargando errores…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Panel Salud del Sistema -->
+        <div id="act-panel-salud" style="display:none;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+            <div class="panel">
+              <div class="panel-header"><div class="panel-title">◎ Estado de servicios</div></div>
+              <div class="panel-body" id="salud-servicios">
+                <div style="display:flex;flex-direction:column;gap:10px;">
+                  <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg3);border-radius:8px;">
+                    <div style="width:10px;height:10px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);"></div>
+                    <div style="flex:1;font-size:13px;">Supabase Auth</div>
+                    <span class="badge badge-green">Operativo</span>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg3);border-radius:8px;">
+                    <div style="width:10px;height:10px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);"></div>
+                    <div style="flex:1;font-size:13px;">Base de datos</div>
+                    <span class="badge badge-green">Operativo</span>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg3);border-radius:8px;">
+                    <div style="width:10px;height:10px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);"></div>
+                    <div style="flex:1;font-size:13px;">Edge Functions (IA)</div>
+                    <span class="badge badge-green">Operativo</span>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg3);border-radius:8px;">
+                    <div style="width:10px;height:10px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);"></div>
+                    <div style="flex:1;font-size:13px;">Storage (archivos)</div>
+                    <span class="badge badge-green">Operativo</span>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg3);border-radius:8px;">
+                    <div style="width:10px;height:10px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);"></div>
+                    <div style="flex:1;font-size:13px;">Netlify (portales)</div>
+                    <span class="badge badge-green">Operativo</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="panel-header"><div class="panel-title">◎ Métricas del sistema</div></div>
+              <div class="panel-body" id="salud-metricas">
+                <div style="display:flex;flex-direction:column;gap:14px;">
+                  <div>
+                    <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px;">
+                      <span style="color:var(--text2);">Storage utilizado</span>
+                      <span style="font-family:var(--mono);color:var(--text);" id="met-storage">—</span>
+                    </div>
+                    <div class="meter"><div class="meter-fill" style="width:35%;background:var(--green);"></div></div>
+                  </div>
+                  <div>
+                    <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px;">
+                      <span style="color:var(--text2);">Usuarios activos hoy</span>
+                      <span style="font-family:var(--mono);color:var(--text);" id="met-activos">—</span>
+                    </div>
+                    <div class="meter"><div class="meter-fill" style="width:22%;background:var(--cyan);"></div></div>
+                  </div>
+                  <div>
+                    <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px;">
+                      <span style="color:var(--text2);">Llamadas IA hoy</span>
+                      <span style="font-family:var(--mono);color:var(--text);" id="met-ia">—</span>
+                    </div>
+                    <div class="meter"><div class="meter-fill" style="width:15%;background:var(--blue);"></div></div>
+                  </div>
+                  <div>
+                    <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px;">
+                      <span style="color:var(--text2);">Evidencias subidas (mes)</span>
+                      <span style="font-family:var(--mono);color:var(--text);" id="met-evidencias">—</span>
+                    </div>
+                    <div class="meter"><div class="meter-fill" style="width:45%;background:var(--amber);"></div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-header"><div class="panel-title">◎ Registro de sesiones recientes</div></div>
+            <div class="tbl-wrap">
+              <table class="tbl">
+                <thead><tr><th>Usuario</th><th>Email</th><th>Escuela</th><th>Portal</th><th>Último acceso</th><th>IP</th></tr></thead>
+                <tbody id="salud-sesiones-tbody">
+                  <tr><td colspan="6" style="color:var(--text3);text-align:center;padding:32px;">Cargando sesiones…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ CONFIG ══ -->
+      <div class="page" id="page-config">
+        <div class="page-header">
+          <div>
+            <div class="page-title">Configuración global</div>
+            <div class="page-sub">Parámetros del sistema SIEMBRA</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div class="panel">
+            <div class="panel-header"><div class="panel-title">◎ Conexión Supabase</div></div>
+            <div class="panel-body">
+              <div class="form-group">
+                <label>URL del proyecto</label>
+                <input type="text" id="cfg-url" placeholder="https://xxxxx.supabase.co">
+              </div>
+              <div class="form-group">
+                <label>Publishable Key</label>
+                <input type="text" id="cfg-key" placeholder="sb_publishable_…">
+              </div>
+              <button class="btn btn-primary btn-sm" onclick="guardarConfig()">Guardar y reconectar</button>
+              <div style="margin-top:10px;font-size:12px;color:var(--text3);" id="cfg-status"></div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-header"><div class="panel-title">◎ Versión del sistema</div></div>
+            <div class="panel-body" style="font-size:13px;color:var(--text2);line-height:2;">
+              <div><span style="color:var(--text3);font-family:var(--mono);">Hub</span> &nbsp; siembra-hub-v20.html</div>
+              <div><span style="color:var(--text3);font-family:var(--mono);">Alumno</span> &nbsp; siembra-alumno-v10.html</div>
+              <div><span style="color:var(--text3);font-family:var(--mono);">Familia</span> &nbsp; siembra-familia-v1.html</div>
+              <div><span style="color:var(--text3);font-family:var(--mono);">Admin</span> &nbsp; siembra-superadmin.html</div>
+              <div style="margin-top:12px;padding:8px 12px;background:var(--green-dim);border-radius:6px;font-family:var(--mono);font-size:11px;color:var(--green);">Sistema operativo · Marzo 2026</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ CHECKLIST DE PRODUCCIÓN ══ -->
+      <div class="page" id="page-checklist">
+        <div class="page-header">
+          <div>
+            <div class="page-title">🚀 Checklist de producción</div>
+            <div class="page-sub">Estado real del sistema — qué falta para que todo funcione al 100%</div>
+          </div>
+          <button onclick="saChecklistVerificar()" class="btn btn-primary">🔄 Verificar ahora</button>
+        </div>
+
+        <div id="sa-checklist-progreso" style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+            <div style="font-size:14px;font-weight:700;color:var(--text);">Progreso general</div>
+            <div id="sa-checklist-pct" style="font-size:18px;font-weight:800;color:var(--green);font-family:var(--mono);">—</div>
+          </div>
+          <div style="background:var(--bg3);border-radius:99px;height:10px;overflow:hidden;">
+            <div id="sa-checklist-bar" style="height:100%;background:var(--green);border-radius:99px;transition:width .5s;width:0%;"></div>
+          </div>
+        </div>
+
+        <div id="sa-checklist-lista" style="display:grid;gap:12px;">
+          <div style="text-align:center;padding:48px;background:var(--bg2);border-radius:12px;border:1.5px dashed var(--border);color:var(--text3);">
+            <div style="font-size:36px;margin-bottom:10px;">🔍</div>
+            <div style="font-size:14px;font-weight:600;margin-bottom:4px;">Presiona "Verificar ahora"</div>
+            <div style="font-size:12px;">Se revisará el estado real de cada requisito del sistema</div>
+          </div>
+        </div>
+      </div>
+
+
+    </main>
+  </div>
+</div>
+
+<!-- Modal: generar invitación -->
+<div class="modal-overlay" id="modal-inv" onclick="if(event.target===this)cerrarModalInv()">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title">Generar invitación</div>
+      <button class="modal-close" onclick="cerrarModalInv()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Escuela</label>
+        <select id="inv-escuela-sel">
+          <option value="">Seleccionar escuela…</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Rol invitado</label>
+          <select id="inv-rol-sel">
+            <option value="director">Director/a</option>
+            <option value="admin">Admin escolar</option>
+            <option value="docente">Docente</option>
+            <option value="coordinador">Coordinador</option>
+            <option value="ts">Trabajo social</option>
+            <option value="prefecto">Prefecto</option>
+            <option value="tutor">Tutor de grupo</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Email destino (opcional)</label>
+          <input type="email" id="inv-email" placeholder="nombre@escuela.edu.mx">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Días de vigencia</label>
+        <select id="inv-dias">
+          <option value="3">3 días</option>
+          <option value="7" selected>7 días</option>
+          <option value="15">15 días</option>
+          <option value="30">30 días</option>
+        </select>
+      </div>
+      <div id="inv-result" style="display:none;margin-top:12px;padding:14px;background:var(--bg3);border-radius:var(--r);border:1px solid var(--border2);">
+        <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:6px;letter-spacing:1px;">TOKEN GENERADO</div>
+        <div style="font-family:var(--mono);font-size:13px;color:var(--cyan);word-break:break-all;cursor:pointer;" id="inv-token-display" onclick="copiarTexto(this.textContent)"></div>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px;">Clic en el token para copiar</div>
+        <div style="margin-top:8px;font-family:var(--mono);font-size:10px;color:var(--text3);letter-spacing:1px;">LINK DE REGISTRO</div>
+        <div style="font-family:var(--mono);font-size:11px;color:var(--green);word-break:break-all;cursor:pointer;margin-top:2px;" id="inv-link-display" onclick="copiarTexto(this.textContent)">—</div>
+        <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
+          <button class="btn btn-primary btn-sm" onclick="invCopiarLink()">📋 Copiar link</button>
+          <button class="btn btn-sm" style="background:#25d366;color:white;border:none;" onclick="invWhatsApp()">💬 WhatsApp</button>
+          <button class="btn btn-sm" style="background:var(--blue);color:white;border:none;" onclick="invEnviarEmail()">📧 Email</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" onclick="cerrarModalInv()">Cerrar</button>
+      <button class="btn btn-primary" onclick="generarInvitacion()" id="inv-btn">Generar token →</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// SIEMBRA SUPERADMIN — JavaScript
+// ═══════════════════════════════════════════════════════
+
+// ── Supabase ──
+const SA_URL = 'https://maoioxmnfzzwnuinesyt.supabase.co';
+const SA_KEY = 'sb_publishable_fNwG2bdRTbrV-JCF7of8hA_TDjSXplY';
+let sb = null;
+let currentAdmin = null;
+
+try { sb = supabase.createClient(SA_URL, SA_KEY); } catch(e) { console.warn('Supabase init:', e); }
+window.SA_URL = SA_URL;
+Object.defineProperties(window, {
+  sb: {
+    configurable: true,
+    get: () => sb,
+    set: (value) => { sb = value; },
+  },
+  currentAdmin: {
+    configurable: true,
+    get: () => currentAdmin,
+    set: (value) => { currentAdmin = value; },
+  },
+});
+
+// ── Estado global ──
+let escuelasData   = [];
+let usuariosData   = [];
+let invitacionesData = [];
+let escuelasMetricas = {};
+
+// ── LOGIN ──
+function entrarDemo() {
+  toast('Modo demo desactivado. Usa tu cuenta de superadmin.', 'err');
+}
+
+// doLogin y doLogout se definen en app/core/sa-auth.js
+
+function mostrarError(msg) {
+  const el = document.getElementById('login-error');
+  el.textContent = msg; el.style.display = 'block';
+}
+
+function abrirApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  const app = document.getElementById('app');
+  app.style.display = 'flex';
+  // Email en topbar
+  const email = currentAdmin?.email || '';
+  const initials = email.slice(0,2).toUpperCase();
+  document.getElementById('tb-initials').textContent = initials;
+  document.getElementById('tb-email').textContent = email;
+  // Fecha
+  document.getElementById('dash-fecha').textContent =
+    new Date().toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  // Config guardada
+  const savedUrl = localStorage.getItem('sa_url');
+  const savedKey = localStorage.getItem('sa_key');
+  if (savedUrl) document.getElementById('cfg-url').value = savedUrl;
+  if (savedKey) document.getElementById('cfg-key').value = savedKey;
+  cargarTodo();
+}
+
+// ── NAVEGACIÓN ──
+let paginaActual = 'dashboard';
+function navTo(page) {
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  const navBtn = document.getElementById('nav-' + page);
+  const pg     = document.getElementById('page-' + page);
+  if (navBtn) navBtn.classList.add('active');
+  if (pg) pg.classList.add('active');
+  paginaActual = page;
+  if (page === 'dashboard')    renderDashboard();
+  if (page === 'escuelas')     renderTablaEscuelas(escuelasData);
+  if (page === 'usuarios')     renderTablaUsuarios(usuariosData);
+  if (page === 'invitaciones') { renderTablaInvitaciones(invitacionesData); poblarSelectores(); }
+  if (page === 'actividad')    cargarActividad();
+  if (page === 'sql')          renderSQL();
+  if (page === 'checklist') setTimeout(() => saChecklistVerificar(), 100);
+  if (page === 'config') {
+    const savedUrl = localStorage.getItem('sa_url');
+    const savedKey = localStorage.getItem('sa_key');
+    if (savedUrl && document.getElementById('cfg-url')) document.getElementById('cfg-url').value = savedUrl;
+    if (savedKey && document.getElementById('cfg-key')) document.getElementById('cfg-key').value = savedKey;
+  }
+}
+
+// ── CONFIG ──
+function guardarConfig() {
+  const url = document.getElementById('cfg-url').value.trim();
+  const key = document.getElementById('cfg-key').value.trim();
+  if (!url || !key) { toast('Ingresa URL y key', 'err'); return; }
+  localStorage.setItem('sa_url', url);
+  localStorage.setItem('sa_key', key);
+  try {
+    sb = supabase.createClient(url, key);
+    document.getElementById('cfg-status').textContent = '✓ Reconectado a ' + url;
+    document.getElementById('cfg-status').style.color = 'var(--green)';
+    cargarTodo();
+    toast('Configuracion guardada y reconectado', 'ok');
+  } catch(e) {
+    toast('Error al conectar: ' + e.message, 'err');
+  }
+}
+
+// ── INIT ──
+window.addEventListener('DOMContentLoaded', async () => {
+  if (window.SiembraSaAuth?.bootstrapSaSession) {
+    await window.SiembraSaAuth.bootstrapSaSession();
+    return;
+  }
+  // Config guardada
+  const savedUrl = localStorage.getItem('sa_url');
+  const savedKey = localStorage.getItem('sa_key');
+  if (savedUrl && savedKey) {
+    try { sb = supabase.createClient(savedUrl, savedKey); } catch(e) {}
+  }
+  // Siempre cerrar sesión al abrir — seguridad para panel superadmin
+  try {
+    if (sb) await sb.auth.signOut();
+  } catch(e) {}
+  // Nunca auto-login — siempre mostrar pantalla de credenciales
+
+  // Demo mode si no hay sesión (para desarrollo)
+  if (!sb || SA_URL.includes('DISABLED')) {
+    // Permitir acceso demo automático para desarrollo
+    const devMode = localStorage.getItem('sa_dev') === '1';
+    if (devMode) { currentAdmin = { email: 'dev@siembra.mx' }; abrirApp(); return; }
+  }
+  // Siempre cargar selectores al abrir
+});
+
+if (window.SiembraSaAuth) {
+  Object.assign(window, {
+    doLogin: window.SiembraSaAuth.doLogin,
+    doLogout: window.SiembraSaAuth.doLogout,
+  });
+}
+
+</script>
+</body>
+</html>

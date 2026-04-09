@@ -1,0 +1,1126 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SIEMBRA — El sistema escolar que México necesitaba</title>
+  <meta name="description" content="Plataforma educativa con IA para escuelas mexicanas. NEM nativo, gamificación, comunicación en tiempo real. Para escuelas públicas y privadas.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700;800;900&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,700;0,9..144,900;1,9..144,700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --verde:       #0d5c2f;
+      --verde-mid:   #16a34a;
+      --verde-light: #dcfce7;
+      --verde-xlight:#f0fdf4;
+      --negro:       #0a0f0d;
+      --gris-900:    #0f172a;
+      --gris-700:    #334155;
+      --gris-400:    #94a3b8;
+      --gris-100:    #f1f5f9;
+      --blanco:      #ffffff;
+      --acento:      #4ade80;
+      --morado:      #7c3aed;
+      --naranja:     #f97316;
+      --r:           16px;
+      --r-lg:        24px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Sora', sans-serif;
+      background: var(--blanco);
+      color: var(--gris-900);
+      overflow-x: hidden;
+    }
+
+    /* ── NAVBAR ── */
+    .navbar {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 5vw; height: 68px;
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid rgba(0,0,0,.06);
+      transition: box-shadow .3s;
+    }
+    .navbar.scrolled { box-shadow: 0 4px 24px rgba(0,0,0,.08); }
+    .nav-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+    .nav-logo-icon {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: linear-gradient(135deg, #0d5c2f, #16a34a);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+    }
+    .nav-logo-text { font-family: 'Fraunces', serif; font-size: 20px; font-weight: 900; color: var(--verde); }
+    .nav-links { display: flex; align-items: center; gap: 32px; }
+    .nav-links a { font-size: 14px; font-weight: 600; color: var(--gris-700); text-decoration: none; transition: color .2s; }
+    .nav-links a:hover { color: var(--verde); }
+    .nav-cta {
+      display: flex; align-items: center; gap: 10px;
+    }
+    .btn-outline-sm {
+      padding: 8px 18px; border-radius: 99px; border: 1.5px solid var(--verde);
+      background: transparent; color: var(--verde); font-family: 'Sora', sans-serif;
+      font-size: 13px; font-weight: 700; cursor: pointer; transition: .2s;
+    }
+    .btn-outline-sm:hover { background: var(--verde-xlight); }
+    .btn-primary-sm {
+      padding: 8px 20px; border-radius: 99px; border: none;
+      background: var(--verde); color: white; font-family: 'Sora', sans-serif;
+      font-size: 13px; font-weight: 700; cursor: pointer; transition: .2s;
+    }
+    .btn-primary-sm:hover { background: #0a4a24; transform: translateY(-1px); }
+
+    /* ── HERO ── */
+    .hero {
+      min-height: 100vh;
+      background: linear-gradient(160deg, #f0fdf4 0%, #ffffff 50%, #eff6ff 100%);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 120px 5vw 80px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(13,92,47,.07), transparent);
+      pointer-events: none;
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--verde-light); color: var(--verde);
+      font-size: 12px; font-weight: 700; padding: 6px 16px;
+      border-radius: 99px; margin-bottom: 28px;
+      border: 1px solid rgba(22,163,74,.2);
+    }
+    .hero-badge-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--verde-mid); animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1}50%{opacity:.4} }
+
+    .hero h1 {
+      font-family: 'Fraunces', serif;
+      font-size: clamp(38px, 6vw, 80px);
+      font-weight: 900;
+      line-height: 1.1;
+      color: var(--negro);
+      max-width: 900px;
+      margin-bottom: 24px;
+    }
+    .hero h1 .highlight {
+      background: linear-gradient(135deg, #0d5c2f, #16a34a, #4ade80);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .hero-sub {
+      font-size: clamp(16px, 2vw, 20px);
+      color: var(--gris-700);
+      max-width: 640px;
+      line-height: 1.7;
+      margin-bottom: 40px;
+    }
+    .hero-actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-bottom: 56px; }
+    .btn-hero-primary {
+      padding: 16px 36px; border-radius: 99px; border: none;
+      background: linear-gradient(135deg, #0d5c2f, #16a34a);
+      color: white; font-family: 'Sora', sans-serif; font-size: 15px; font-weight: 800;
+      cursor: pointer; transition: .25s; box-shadow: 0 8px 32px rgba(13,92,47,.3);
+      text-decoration: none; display: inline-flex; align-items: center; gap: 8px;
+    }
+    .btn-hero-primary:hover { transform: translateY(-3px); box-shadow: 0 12px 40px rgba(13,92,47,.4); }
+    .btn-hero-ghost {
+      padding: 16px 32px; border-radius: 99px; border: 2px solid rgba(13,92,47,.15);
+      background: white; color: var(--gris-900); font-family: 'Sora', sans-serif;
+      font-size: 15px; font-weight: 700; cursor: pointer; transition: .2s;
+      text-decoration: none; display: inline-flex; align-items: center; gap: 8px;
+    }
+    .btn-hero-ghost:hover { border-color: var(--verde); color: var(--verde); }
+
+    .hero-social-proof {
+      display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--gris-400);
+      margin-bottom: 56px;
+    }
+    .hero-avatars { display: flex; }
+    .hero-avatar {
+      width: 32px; height: 32px; border-radius: 50%; border: 2px solid white;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; margin-left: -8px; background: var(--verde-light);
+    }
+    .hero-avatar:first-child { margin-left: 0; }
+
+    /* Dashboard mock */
+    .hero-mock {
+      width: 100%; max-width: 1000px;
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 32px 96px rgba(0,0,0,.12), 0 0 0 1px rgba(0,0,0,.04);
+      overflow: hidden;
+    }
+    .mock-bar {
+      background: #f8fafc; border-bottom: 1px solid #e2e8f0;
+      padding: 14px 20px; display: flex; align-items: center; gap: 10px;
+    }
+    .mock-dot { width: 12px; height: 12px; border-radius: 50%; }
+    .mock-bar-title { font-size: 12px; font-weight: 700; color: #64748b; margin-left: auto; }
+    .mock-body { display: grid; grid-template-columns: 220px 1fr; min-height: 440px; }
+    .mock-sidebar {
+      background: var(--verde);
+      padding: 24px 16px;
+    }
+    .mock-logo { color: white; font-family: 'Fraunces',serif; font-size: 18px; font-weight: 900; margin-bottom: 28px; }
+    .mock-nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 12px; border-radius: 10px;
+      font-size: 12px; font-weight: 600; color: rgba(255,255,255,.7);
+      margin-bottom: 4px; cursor: pointer;
+    }
+    .mock-nav-item.active { background: rgba(255,255,255,.15); color: white; }
+    .mock-content { padding: 24px; background: #f8fafc; }
+    .mock-heading { font-family: 'Fraunces',serif; font-size: 18px; font-weight: 700; color: #0f172a; margin-bottom: 16px; }
+    .mock-stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 16px; }
+    .mock-stat {
+      background: white; border-radius: 12px; padding: 14px;
+      border: 1px solid #e2e8f0;
+    }
+    .mock-stat-val { font-size: 22px; font-weight: 900; color: #0d5c2f; }
+    .mock-stat-lbl { font-size: 10px; color: #94a3b8; font-weight: 600; text-transform: uppercase; margin-top: 2px; }
+    .mock-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .mock-card { background: white; border-radius: 12px; padding: 14px; border: 1px solid #e2e8f0; }
+    .mock-card-title { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 10px; }
+    .mock-bar-item { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .mock-bar-label { font-size: 11px; color: #0f172a; font-weight: 600; width: 70px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0; }
+    .mock-bar-track { flex: 1; height: 6px; background: #f0fdf4; border-radius: 99px; overflow: hidden; }
+    .mock-bar-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, #0d5c2f, #4ade80); }
+    .mock-bar-score { font-size: 11px; font-weight: 800; color: #0d5c2f; width: 24px; text-align: right; }
+    .mock-chip {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 8px; border-radius: 99px; font-size: 10px; font-weight: 700;
+    }
+    .mock-chip.verde { background: #dcfce7; color: #16a34a; }
+    .mock-chip.rojo  { background: #fee2e2; color: #dc2626; }
+    .mock-chip.azul  { background: #dbeafe; color: #1d4ed8; }
+    .mock-alert { background: #fef3c7; border: 1px solid #fbbf24; border-radius: 8px; padding: 8px 10px; font-size: 10px; color: #92400e; font-weight: 600; margin-bottom: 6px; }
+
+    /* ── LOGOS BAND ── */
+    .logos-band {
+      background: var(--gris-100);
+      padding: 28px 5vw;
+      text-align: center;
+    }
+    .logos-band p { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--gris-400); margin-bottom: 20px; }
+    .logos-row { display: flex; justify-content: center; align-items: center; gap: 40px; flex-wrap: wrap; }
+    .logo-pill {
+      background: white; border-radius: 99px; padding: 8px 20px;
+      font-size: 12px; font-weight: 700; color: var(--gris-700);
+      border: 1px solid #e2e8f0; display: flex; align-items: center; gap: 6px;
+    }
+
+    /* ── SECTIONS GENERAL ── */
+    section { padding: 96px 5vw; }
+    .section-label {
+      display: inline-block; font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 1.5px; color: var(--verde-mid);
+      margin-bottom: 14px;
+    }
+    .section-title {
+      font-family: 'Fraunces', serif; font-size: clamp(28px, 4vw, 50px);
+      font-weight: 900; line-height: 1.15; color: var(--negro); margin-bottom: 18px;
+    }
+    .section-sub { font-size: 17px; color: var(--gris-700); line-height: 1.7; max-width: 600px; }
+
+    /* ── FEATURES GRID ── */
+    .features { background: white; }
+    .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-top: 56px; }
+    .feature-card {
+      background: var(--gris-100); border-radius: var(--r-lg);
+      padding: 28px; transition: .25s;
+      border: 1.5px solid transparent;
+    }
+    .feature-card:hover { background: var(--verde-xlight); border-color: rgba(13,92,47,.15); transform: translateY(-4px); box-shadow: 0 12px 40px rgba(13,92,47,.08); }
+    .feature-ico { font-size: 32px; margin-bottom: 16px; }
+    .feature-title { font-size: 16px; font-weight: 800; color: var(--negro); margin-bottom: 8px; }
+    .feature-desc { font-size: 13px; color: var(--gris-700); line-height: 1.6; }
+    .feature-badge { display: inline-block; margin-top: 12px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; padding: 3px 8px; border-radius: 99px; }
+    .badge-new { background: #dbeafe; color: #1e40af; }
+    .badge-ai  { background: #f3e8ff; color: #7c3aed; }
+    .badge-nem { background: #dcfce7; color: #166534; }
+
+    /* ── ROLES ── */
+    .roles { background: var(--negro); color: white; position: relative; overflow: hidden; }
+    .roles::before {
+      content: ''; position: absolute; top: -200px; right: -200px;
+      width: 600px; height: 600px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(13,92,47,.3), transparent);
+      pointer-events: none;
+    }
+    .roles .section-title { color: white; }
+    .roles .section-sub { color: rgba(255,255,255,.6); }
+    .roles-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-top: 56px; }
+    .role-card {
+      background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: var(--r-lg); padding: 24px;
+      transition: .25s; cursor: default;
+    }
+    .role-card:hover { background: rgba(255,255,255,.1); border-color: rgba(74,222,128,.3); }
+    .role-ico { font-size: 28px; margin-bottom: 14px; }
+    .role-name { font-size: 15px; font-weight: 800; color: white; margin-bottom: 8px; }
+    .role-list { list-style: none; }
+    .role-list li { font-size: 12px; color: rgba(255,255,255,.6); padding: 4px 0; display: flex; align-items: center; gap: 6px; }
+    .role-list li::before { content: '→'; color: var(--acento); font-weight: 700; }
+
+    /* ── VS TABLE ── */
+    .comparison { background: var(--gris-100); }
+    .vs-table { width: 100%; border-collapse: collapse; margin-top: 48px; background: white; border-radius: var(--r-lg); overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,.06); }
+    .vs-table th { padding: 18px 20px; font-size: 13px; font-weight: 800; text-align: center; }
+    .vs-table th:first-child { text-align: left; }
+    .vs-table th.siembra-col { background: var(--verde); color: white; font-size: 15px; }
+    .vs-table th.other-col { background: #f8fafc; color: var(--gris-700); }
+    .vs-table td { padding: 14px 20px; font-size: 13px; border-top: 1px solid #f0f0f0; text-align: center; }
+    .vs-table td:first-child { text-align: left; font-weight: 600; color: var(--gris-900); }
+    .vs-table tr:hover td { background: #f8fafc; }
+    .check { color: #16a34a; font-size: 18px; font-weight: 900; }
+    .cross { color: #dc2626; font-size: 16px; }
+    .partial { color: #d97706; font-size: 14px; font-weight: 700; }
+
+    /* ── METODOLOGÍAS ── */
+    .metodologias { background: white; }
+    .met-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-top: 48px; }
+    .met-card {
+      border: 1.5px solid #e2e8f0; border-radius: var(--r-lg); padding: 24px;
+      text-align: center; transition: .2s;
+    }
+    .met-card:hover { border-color: var(--verde-mid); background: var(--verde-xlight); }
+    .met-ico { font-size: 36px; margin-bottom: 12px; }
+    .met-name { font-size: 14px; font-weight: 800; color: var(--negro); margin-bottom: 6px; }
+    .met-desc { font-size: 12px; color: var(--gris-700); line-height: 1.5; }
+
+    /* ── IA SECTION ── */
+    .ia-section {
+      background: linear-gradient(135deg, #0d5c2f 0%, #16a34a 50%, #064e3b 100%);
+      color: white; text-align: center;
+    }
+    .ia-section .section-title { color: white; }
+    .ia-section .section-sub { color: rgba(255,255,255,.75); margin: 0 auto 48px; }
+    .ia-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+    .ia-card {
+      background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.15);
+      border-radius: var(--r-lg); padding: 24px;
+    }
+    .ia-card-ico { font-size: 28px; margin-bottom: 12px; }
+    .ia-card-title { font-size: 15px; font-weight: 800; color: white; margin-bottom: 8px; }
+    .ia-card-desc { font-size: 13px; color: rgba(255,255,255,.7); line-height: 1.6; }
+
+    /* ── STATS ── */
+    .stats-band { background: white; padding: 80px 5vw; }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 32px; text-align: center; }
+    .stat-num { font-family: 'Fraunces', serif; font-size: 56px; font-weight: 900; color: var(--verde); line-height: 1; }
+    .stat-label { font-size: 14px; color: var(--gris-700); margin-top: 8px; font-weight: 600; }
+
+    /* ── PRICING ── */
+    .pricing { background: var(--gris-100); }
+    .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-top: 48px; max-width: 1100px; }
+    .price-card {
+      background: white; border-radius: var(--r-lg); padding: 32px;
+      border: 1.5px solid #e2e8f0; transition: .25s;
+    }
+    .price-card.featured {
+      border-color: var(--verde);
+      box-shadow: 0 0 0 4px rgba(13,92,47,.07), 0 16px 48px rgba(13,92,47,.1);
+      transform: scale(1.03);
+    }
+    .price-badge { display: inline-block; background: var(--verde); color: white; font-size: 10px; font-weight: 800; text-transform: uppercase; padding: 3px 10px; border-radius: 99px; margin-bottom: 16px; }
+    .price-name { font-size: 20px; font-weight: 800; color: var(--negro); margin-bottom: 8px; }
+    .price-amount { font-family: 'Fraunces',serif; font-size: 44px; font-weight: 900; color: var(--negro); }
+    .price-amount sup { font-size: 18px; }
+    .price-amount span { font-size: 14px; font-weight: 400; color: var(--gris-400); }
+    .price-desc { font-size: 13px; color: var(--gris-700); margin: 12px 0 24px; }
+    .price-list { list-style: none; }
+    .price-list li { font-size: 13px; padding: 8px 0; border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; gap: 8px; }
+    .price-list li:last-child { border: none; }
+    .price-list li::before { content: '✓'; color: var(--verde-mid); font-weight: 900; font-size: 14px; flex-shrink: 0; }
+    .btn-price {
+      width: 100%; margin-top: 24px; padding: 14px; border-radius: 10px;
+      font-family: 'Sora',sans-serif; font-size: 14px; font-weight: 800;
+      cursor: pointer; transition: .2s;
+    }
+    .btn-price-featured { background: var(--verde); color: white; border: none; }
+    .btn-price-featured:hover { background: #0a4a24; }
+    .btn-price-outline { background: transparent; color: var(--verde); border: 2px solid var(--verde); }
+    .btn-price-outline:hover { background: var(--verde-xlight); }
+
+    /* ── TESTIMONIALS ── */
+    .testimonials { background: white; }
+    .testi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-top: 48px; }
+    .testi-card { background: var(--gris-100); border-radius: var(--r-lg); padding: 28px; border: 1.5px solid transparent; }
+    .testi-stars { color: #f59e0b; font-size: 16px; margin-bottom: 14px; }
+    .testi-text { font-size: 14px; color: var(--gris-700); line-height: 1.7; font-style: italic; margin-bottom: 18px; }
+    .testi-author { display: flex; align-items: center; gap: 12px; }
+    .testi-avatar { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+    .testi-name { font-size: 13px; font-weight: 800; color: var(--negro); }
+    .testi-role { font-size: 11px; color: var(--gris-400); }
+
+    /* ── CTA FINAL ── */
+    .cta-final {
+      background: var(--negro); color: white; text-align: center;
+      padding: 100px 5vw;
+    }
+    .cta-final .section-title { color: white; max-width: 700px; margin: 0 auto 20px; }
+    .cta-final p { color: rgba(255,255,255,.6); font-size: 17px; max-width: 540px; margin: 0 auto 40px; line-height: 1.7; }
+    .cta-actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+    .btn-cta-primary {
+      padding: 18px 40px; border-radius: 99px; border: none;
+      background: linear-gradient(135deg, #16a34a, #4ade80);
+      color: var(--negro); font-family: 'Sora',sans-serif; font-size: 16px; font-weight: 800;
+      cursor: pointer; transition: .25s; box-shadow: 0 8px 32px rgba(74,222,128,.3);
+    }
+    .btn-cta-primary:hover { transform: translateY(-3px); box-shadow: 0 12px 40px rgba(74,222,128,.4); }
+    .btn-cta-ghost {
+      padding: 18px 36px; border-radius: 99px; border: 1.5px solid rgba(255,255,255,.2);
+      background: transparent; color: white; font-family: 'Sora',sans-serif;
+      font-size: 16px; font-weight: 700; cursor: pointer; transition: .2s;
+    }
+    .btn-cta-ghost:hover { border-color: rgba(255,255,255,.5); }
+
+    /* ── FOOTER ── */
+    footer {
+      background: #0a0f0d; color: rgba(255,255,255,.5);
+      padding: 56px 5vw 32px;
+    }
+    .footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 40px; margin-bottom: 48px; }
+    .footer-brand p { font-size: 13px; line-height: 1.7; margin-top: 14px; max-width: 300px; }
+    .footer-col h4 { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: white; margin-bottom: 14px; }
+    .footer-col a { display: block; font-size: 13px; margin-bottom: 8px; color: rgba(255,255,255,.5); text-decoration: none; transition: color .2s; }
+    .footer-col a:hover { color: var(--acento); }
+    .footer-bottom { border-top: 1px solid rgba(255,255,255,.06); padding-top: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; font-size: 12px; }
+    .footer-bottom a { color: rgba(255,255,255,.4); text-decoration: none; }
+
+    /* ── MOBILE ── */
+    @media (max-width: 768px) {
+      .nav-links, .nav-cta .btn-outline-sm { display: none; }
+      .mock-body { grid-template-columns: 1fr; }
+      .mock-sidebar { display: none; }
+      .mock-stats { grid-template-columns: 1fr 1fr; }
+      .footer-grid { grid-template-columns: 1fr 1fr; }
+      .price-card.featured { transform: scale(1); }
+      .vs-table th:not(:first-child):not(.siembra-col) { display: none; }
+      .vs-table td:not(:first-child):not(:nth-child(2)) { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAVBAR -->
+<nav class="navbar" id="navbar">
+  <a href="#" class="nav-logo">
+    <div class="nav-logo-icon">🌱</div>
+    <span class="nav-logo-text">SIEMBRA</span>
+  </a>
+  <div class="nav-links">
+    <a href="#funciones">Funciones</a>
+    <a href="#metodologias">Metodologías</a>
+    <a href="#comparativa">Comparativa</a>
+    <a href="#precios">Precios</a>
+    <a href="#contacto">Contacto</a>
+  </div>
+  <div class="nav-cta">
+    <button class="btn-outline-sm">Iniciar sesión</button>
+    <button class="btn-primary-sm">Prueba gratis 30 días →</button>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-badge">
+    <div class="hero-badge-dot"></div>
+    Diseñado 100% para México · NEM 2022-2026
+  </div>
+  <h1>
+    El sistema escolar que<br>
+    <span class="highlight">México necesitaba</span>
+  </h1>
+  <p class="hero-sub">
+    Gestión académica con inteligencia artificial, comunicación en tiempo real y gamificación.
+    Para escuelas públicas y privadas, adaptado a tu metodología.
+  </p>
+  <div class="hero-actions">
+    <a href="#" class="btn-hero-primary">🚀 Comenzar gratis — 30 días</a>
+    <a href="#demo" class="btn-hero-ghost">▶ Ver demo en vivo</a>
+  </div>
+  <div class="hero-social-proof">
+    <div class="hero-avatars">
+      <div class="hero-avatar">👩‍🏫</div>
+      <div class="hero-avatar">👨‍💼</div>
+      <div class="hero-avatar">👩‍👦</div>
+      <div class="hero-avatar">🧑‍🎓</div>
+    </div>
+    <span>Más de <strong style="color:var(--verde)">1,200 usuarios</strong> ya confían en SIEMBRA</span>
+  </div>
+
+  <!-- Dashboard Mock -->
+  <div class="hero-mock" id="demo">
+    <div class="mock-bar">
+      <div class="mock-dot" style="background:#ef4444;"></div>
+      <div class="mock-dot" style="background:#f59e0b;"></div>
+      <div class="mock-dot" style="background:#22c55e;"></div>
+      <div class="mock-bar-title">SIEMBRA — Portal Director · Esc. Primaria "Lázaro Cárdenas" · 19EPR0001A</div>
+    </div>
+    <div class="mock-body">
+      <div class="mock-sidebar">
+        <div class="mock-logo">🌱 SIEMBRA</div>
+        <div class="mock-nav-item active">🏠 Dashboard</div>
+        <div class="mock-nav-item">📊 Calificaciones</div>
+        <div class="mock-nav-item">📝 Exámenes</div>
+        <div class="mock-nav-item">✅ Asistencia</div>
+        <div class="mock-nav-item">👥 Docentes</div>
+        <div class="mock-nav-item">🔔 Alertas</div>
+        <div class="mock-nav-item">💬 Mensajes</div>
+        <div class="mock-nav-item">📋 Reportes SEP</div>
+        <div class="mock-nav-item">🤖 IA Análisis</div>
+      </div>
+      <div class="mock-content">
+        <div class="mock-heading">Buenos días, Director González 👋</div>
+        <div class="mock-stats">
+          <div class="mock-stat">
+            <div class="mock-stat-val">342</div>
+            <div class="mock-stat-lbl">Alumnos</div>
+          </div>
+          <div class="mock-stat">
+            <div class="mock-stat-val">8.4</div>
+            <div class="mock-stat-lbl">Promedio</div>
+          </div>
+          <div class="mock-stat">
+            <div class="mock-stat-val">94%</div>
+            <div class="mock-stat-lbl">Asistencia</div>
+          </div>
+          <div class="mock-stat">
+            <div class="mock-stat-val">3</div>
+            <div class="mock-stat-lbl">Alertas</div>
+          </div>
+        </div>
+        <div class="mock-alert">⚠️ 3 alumnos con riesgo académico detectados por IA · Ver reporte →</div>
+        <div class="mock-grid2">
+          <div class="mock-card">
+            <div class="mock-card-title">📊 Promedio por materia</div>
+            <div class="mock-bar-item"><div class="mock-bar-label">Matemáticas</div><div class="mock-bar-track"><div class="mock-bar-fill" style="width:82%"></div></div><div class="mock-bar-score">8.2</div></div>
+            <div class="mock-bar-item"><div class="mock-bar-label">Español</div><div class="mock-bar-track"><div class="mock-bar-fill" style="width:88%"></div></div><div class="mock-bar-score">8.8</div></div>
+            <div class="mock-bar-item"><div class="mock-bar-label">Ciencias</div><div class="mock-bar-track"><div class="mock-bar-fill" style="width:76%"></div></div><div class="mock-bar-score">7.6</div></div>
+            <div class="mock-bar-item"><div class="mock-bar-label">Historia</div><div class="mock-bar-track"><div class="mock-bar-fill" style="width:84%"></div></div><div class="mock-bar-score">8.4</div></div>
+          </div>
+          <div class="mock-card">
+            <div class="mock-card-title">🔔 Alertas recientes</div>
+            <div style="font-size:11px;display:flex;flex-direction:column;gap:8px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span>Ana García — 12 faltas</span>
+                <span class="mock-chip rojo">Crítico</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span>Recuperación: 5 alumnos</span>
+                <span class="mock-chip verde">Programado</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span>Reporte T1 pendiente · 2 docs</span>
+                <span class="mock-chip azul">Aviso</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- LOGOS BAND -->
+<div class="logos-band">
+  <p>Alineado con los programas oficiales</p>
+  <div class="logos-row">
+    <div class="logo-pill">📚 NEM 2022</div>
+    <div class="logo-pill">🏛️ SEP México</div>
+    <div class="logo-pill">🌐 Supabase Realtime</div>
+    <div class="logo-pill">🤖 Claude AI</div>
+    <div class="logo-pill">📱 PWA — Sin instalar</div>
+    <div class="logo-pill">🔒 LFPDPPP Compliant</div>
+  </div>
+</div>
+
+<!-- FUNCIONES -->
+<section class="features" id="funciones">
+  <div class="section-label">Plataforma completa</div>
+  <div class="section-title">Todo lo que tu escuela<br>necesita, en un solo lugar</div>
+  <p class="section-sub">Desde la captura de calificaciones hasta la comunicación con padres, SIEMBRA centraliza toda la operación escolar.</p>
+
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-ico">📊</div>
+      <div class="feature-title">Calificaciones NEM</div>
+      <div class="feature-desc">Sistema de evaluación formativa con niveles A-E, aspectos ponderados, captura masiva y exportación a Excel. Compatible con múltiples metodologías.</div>
+      <span class="feature-badge badge-nem">NEM 2022</span>
+    </div>
+    <div class="feature-card">
+      <div class="feature-ico">🤖</div>
+      <div class="feature-title">Inteligencia Artificial</div>
+      <div class="feature-desc">Genera exámenes, guías de estudio, recomendaciones pedagógicas y reportes automáticos con IA. El docente ahorra hasta 4 horas semanales.</div>
+      <span class="feature-badge badge-ai">Potenciado por Claude</span>
+    </div>
+    <div class="feature-card">
+      <div class="feature-ico">🔄</div>
+      <div class="feature-title">Módulo de Recuperaciones</div>
+      <div class="feature-desc">Gestión completa de exámenes de recuperación: notificación automática a padres, guía de estudio IA personalizada y seguimiento de resultados.</div>
+      <span class="feature-badge badge-new">Nuevo</span>
+    </div>
+    <div class="feature-card">
+      <div class="feature-ico">💬</div>
+      <div class="feature-title">Chat Docente-Padre</div>
+      <div class="feature-desc">Mensajería en tiempo real entre tutores y padres de familia. Historial completo, notificaciones push y soporte para archivos e imágenes.</div>
+      <span class="feature-badge badge-new">Tiempo real</span>
+    </div>
+    <div class="feature-card">
+      <div class="feature-ico">🎮</div>
+      <div class="feature-title">Gamificación para alumnos</div>
+      <div class="feature-desc">Sistema de XP, insignias NEM, rachas de estudio y ranking de padres. Aumenta el compromiso escolar hasta un 40%.</div>
+      <span class="feature-badge badge-ai">Motivación comprobada</span>
+    </div>
+    <div class="feature-card">
+      <div class="feature-ico">🔔</div>
+      <div class="feature-title">Alertas automáticas</div>
+      <div class="feature-desc">Detección automática de alumnos en riesgo: inasistencias críticas, bajo rendimiento y exámenes reprobados. Notificación inmediata al equipo directivo.</div>
+      <span class="feature-badge badge-new">Tiempo real</span>
+    </div>
+    <div class="feature-card">
+      <div class="feature-ico">📋</div>
+      <div class="feature-title">Reportes SEP</div>
+      <div class="feature-desc">Generación automática de reportes en formato oficial. Boletas, kardex, listas de asistencia y estadísticas para supervisión de zona.</div>
+      <span class="feature-badge badge-nem">Formato oficial</span>
+    </div>
+    <div class="feature-card">
+      <div class="feature-ico">🏥</div>
+      <div class="feature-title">Trabajo Social integrado</div>
+      <div class="feature-desc">Módulo completo para la TS: seguimiento de casos, directorio de instituciones de apoyo (DIF, SIPINNA, IMSS) y expedientes por alumno.</div>
+      <span class="feature-badge badge-new">Único en México</span>
+    </div>
+    <div class="feature-card">
+      <div class="feature-ico">📱</div>
+      <div class="feature-title">PWA — Sin instalar</div>
+      <div class="feature-desc">Funciona en cualquier dispositivo desde el navegador. Sin app store, sin actualizaciones manuales. Acceso offline para datos críticos.</div>
+      <span class="feature-badge badge-nem">iOS · Android · Web</span>
+    </div>
+  </div>
+</section>
+
+<!-- ROLES -->
+<section class="roles">
+  <div class="section-label" style="color:#4ade80;">Para cada persona de la comunidad</div>
+  <div class="section-title">Un portal dedicado<br>para cada rol</div>
+  <p class="section-sub">Cada actor de la comunidad escolar tiene su propia experiencia personalizada con exactamente lo que necesita.</p>
+
+  <div class="roles-grid">
+    <div class="role-card">
+      <div class="role-ico">🏛️</div>
+      <div class="role-name">Director</div>
+      <ul class="role-list">
+        <li>Dashboard ejecutivo en tiempo real</li>
+        <li>Gestión de docentes y grupos</li>
+        <li>Reportes SEP automáticos</li>
+        <li>Control de accesos y roles</li>
+      </ul>
+    </div>
+    <div class="role-card">
+      <div class="role-ico">👩‍🏫</div>
+      <div class="role-name">Docente</div>
+      <ul class="role-list">
+        <li>Calificaciones y asistencia</li>
+        <li>Planeaciones NEM con IA</li>
+        <li>Exámenes y recuperaciones</li>
+        <li>Chat con padres de familia</li>
+      </ul>
+    </div>
+    <div class="role-card">
+      <div class="role-ico">👨‍👩‍👦</div>
+      <div class="role-name">Padre / Tutor</div>
+      <ul class="role-list">
+        <li>Calificaciones en tiempo real</li>
+        <li>Alertas de inasistencia</li>
+        <li>Guías de estudio y recuperaciones</li>
+        <li>Chat directo con el tutor</li>
+      </ul>
+    </div>
+    <div class="role-card">
+      <div class="role-ico">🧑‍🎓</div>
+      <div class="role-name">Alumno</div>
+      <ul class="role-list">
+        <li>Portal gamificado con XP</li>
+        <li>Próximos exámenes y guías</li>
+        <li>Ruta de aprendizaje IA</li>
+        <li>Biblioteca y tareas</li>
+      </ul>
+    </div>
+    <div class="role-card">
+      <div class="role-ico">🏥</div>
+      <div class="role-name">Trabajo Social</div>
+      <ul class="role-list">
+        <li>Seguimiento de casos</li>
+        <li>Instituciones de apoyo</li>
+        <li>Alertas de riesgo social</li>
+        <li>Expedientes digitales</li>
+      </ul>
+    </div>
+    <div class="role-card">
+      <div class="role-ico">🎓</div>
+      <div class="role-name">Coordinador</div>
+      <ul class="role-list">
+        <li>Evaluación a docentes</li>
+        <li>Gestión de academias</li>
+        <li>Visitas de observación</li>
+        <li>Análisis por campo formativo</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- METODOLOGÍAS -->
+<section class="metodologias" id="metodologias">
+  <div class="section-label">Flexibilidad total</div>
+  <div class="section-title">Se adapta a tu metodología,<br>no al revés</div>
+  <p class="section-sub">SIEMBRA funciona con cualquier enfoque pedagógico. El director configura la escala, los períodos y la nomenclatura una sola vez.</p>
+
+  <div class="met-grid">
+    <div class="met-card">
+      <div class="met-ico">📚</div>
+      <div class="met-name">NEM / SEP</div>
+      <div class="met-desc">Evaluación formativa, niveles A-E, campos formativos. Para escuelas públicas.</div>
+    </div>
+    <div class="met-card">
+      <div class="met-ico">🎓</div>
+      <div class="met-name">Tradicional</div>
+      <div class="met-desc">Escala 0-10 o 0-100, bimestres o cuatrimestres. Para colegios privados clásicos.</div>
+    </div>
+    <div class="met-card">
+      <div class="met-ico">🌍</div>
+      <div class="met-name">Bachillerato Internacional</div>
+      <div class="met-desc">Escala 1-7, descriptores IB, teoría del conocimiento. Para colegios con certificación IB.</div>
+    </div>
+    <div class="met-card">
+      <div class="met-ico">🌱</div>
+      <div class="met-name">Montessori</div>
+      <div class="met-desc">Evaluación cualitativa por áreas de desarrollo, sin calificaciones numéricas.</div>
+    </div>
+    <div class="met-card">
+      <div class="met-ico">🎨</div>
+      <div class="met-name">Waldorf</div>
+      <div class="met-desc">Reportes narrativos por épocas, portafolio de evidencias y descripción de habilidades.</div>
+    </div>
+    <div class="met-card">
+      <div class="met-ico">⚙️</div>
+      <div class="met-name">Personalizado</div>
+      <div class="met-desc">Configura tu propia escala, nombres de períodos, criterios y ponderaciones.</div>
+    </div>
+  </div>
+</section>
+
+<!-- IA SECTION -->
+<section class="ia-section">
+  <div class="section-label" style="color:#4ade80;">Inteligencia Artificial</div>
+  <div class="section-title">IA que trabaja para<br>el docente, no en contra</div>
+  <p class="section-sub">Asistente pedagógico integrado que genera contenido de calidad, analiza patrones y personaliza el aprendizaje para cada alumno.</p>
+
+  <div class="ia-cards">
+    <div class="ia-card">
+      <div class="ia-card-ico">📝</div>
+      <div class="ia-card-title">Generador de exámenes</div>
+      <div class="ia-card-desc">Crea evaluaciones formativas alineadas al NEM con preguntas de comprensión, aplicación y reflexión. Contexto mexicano incluido.</div>
+    </div>
+    <div class="ia-card">
+      <div class="ia-card-ico">📚</div>
+      <div class="ia-card-title">Guías de estudio</div>
+      <div class="ia-card-desc">Genera guías personalizadas por alumno, basadas en temas débiles y comentarios del docente. También sube tu propio PDF.</div>
+    </div>
+    <div class="ia-card">
+      <div class="ia-card-ico">🎯</div>
+      <div class="ia-card-title">Estrategias pedagógicas</div>
+      <div class="ia-card-desc">Para cada alumno en riesgo, sugiere técnicas pedagógicas diferenciadas y ejercicios de nivelación concretos.</div>
+    </div>
+    <div class="ia-card">
+      <div class="ia-card-ico">📊</div>
+      <div class="ia-card-title">Análisis de rendimiento</div>
+      <div class="ia-card-desc">Detecta automáticamente patrones de bajo rendimiento, ausentismo crítico y genera alertas antes de que sea tarde.</div>
+    </div>
+    <div class="ia-card">
+      <div class="ia-card-ico">📋</div>
+      <div class="ia-card-title">Planeaciones NEM</div>
+      <div class="ia-card-desc">Genera planeaciones didácticas por campo formativo, proyecto de aula y situación didáctica en segundos.</div>
+    </div>
+    <div class="ia-card">
+      <div class="ia-card-ico">💬</div>
+      <div class="ia-card-title">Informes para padres</div>
+      <div class="ia-card-desc">Redacta informes cualitativos personalizados para cada alumno, listos para entregar a los padres de familia.</div>
+    </div>
+  </div>
+</section>
+
+<!-- STATS -->
+<div class="stats-band">
+  <div style="text-align:center;margin-bottom:56px;">
+    <div class="section-label">Impacto real</div>
+    <div class="section-title">Resultados que hablan<br>por sí solos</div>
+  </div>
+  <div class="stats-grid">
+    <div>
+      <div class="stat-num">4h</div>
+      <div class="stat-label">Promedio de tiempo semanal ahorrado por docente</div>
+    </div>
+    <div>
+      <div class="stat-num">94%</div>
+      <div class="stat-label">De satisfacción entre directores usuarios activos</div>
+    </div>
+    <div>
+      <div class="stat-num">3x</div>
+      <div class="stat-label">Más comunicación efectiva docente-padre</div>
+    </div>
+    <div>
+      <div class="stat-num">40%</div>
+      <div class="stat-label">Reducción en alumnos con inasistencias críticas</div>
+    </div>
+  </div>
+</div>
+
+<!-- COMPARATIVA -->
+<section class="comparison" id="comparativa">
+  <div class="section-label">Comparativa</div>
+  <div class="section-title">¿Por qué elegir SIEMBRA?</div>
+  <p class="section-sub">Comparado con otras plataformas del mercado, SIEMBRA ofrece más funciones específicas para México, a menor costo.</p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-top:40px;margin-bottom:24px;">
+    <div style="background:white;border-radius:14px;padding:18px;border:1.5px solid #e2e8f0;text-align:center;">
+      <div style="font-size:24px;margin-bottom:6px;">🌍</div>
+      <div style="font-size:13px;font-weight:800;color:#0f172a;">Educamos (SM)</div>
+      <div style="font-size:11px;color:#94a3b8;margin-top:4px;">España → LATAM · 960 escuelas · Solo privadas · Sin IA · Precio desde España</div>
+    </div>
+    <div style="background:white;border-radius:14px;padding:18px;border:1.5px solid #e2e8f0;text-align:center;">
+      <div style="font-size:24px;margin-bottom:6px;">🇺🇸</div>
+      <div style="font-size:13px;font-weight:800;color:#0f172a;">ClassDojo</div>
+      <div style="font-size:11px;color:#94a3b8;margin-top:4px;">EE.UU. · Comunicación sólo · Sin calificaciones ni gestión · K-6 básico</div>
+    </div>
+    <div style="background:white;border-radius:14px;padding:18px;border:1.5px solid #e2e8f0;text-align:center;">
+      <div style="font-size:24px;margin-bottom:6px;">🏦</div>
+      <div style="font-size:13px;font-weight:800;color:#0f172a;">Cometa</div>
+      <div style="font-size:11px;color:#94a3b8;margin-top:4px;">México · $5M USD · Solo cobranza/pagos · Sin calificaciones · Solo privadas</div>
+    </div>
+    <div style="background:white;border-radius:14px;padding:18px;border:1.5px solid #e2e8f0;text-align:center;">
+      <div style="font-size:24px;margin-bottom:6px;">🏫</div>
+      <div style="font-size:13px;font-weight:800;color:#0f172a;">Saeko / SEDUCA</div>
+      <div style="font-size:11px;color:#94a3b8;margin-top:4px;">México · Prepa/Universidad · 47 módulos complejos · UX antigua · Sin IA</div>
+    </div>
+  </div>
+
+  <table class="vs-table">
+    <thead>
+      <tr>
+        <th>Característica</th>
+        <th class="siembra-col">🌱 SIEMBRA</th>
+        <th class="other-col">Educamos</th>
+        <th class="other-col">ClassDojo</th>
+        <th class="other-col">Cometa</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>NEM / Currículum mexicano nativo</td>
+        <td><span class="check">✓</span></td>
+        <td><span class="partial">Adaptado</span></td>
+        <td><span class="cross">✗</span></td>
+        <td><span class="cross">✗</span></td>
+      </tr>
+      <tr>
+        <td>Gestión académica completa (califs, asistencia)</td>
+        <td><span class="check">✓</span></td>
+        <td><span class="check">✓</span></td>
+        <td><span class="cross">✗</span></td>
+        <td><span class="cross">✗</span></td>
+      </tr>
+      <tr>
+        <td>Módulo de Trabajo Social</td>
+        <td><span class="check">✓</span></td>
+        <td><span class="cross">✗</span></td>
+        <td><span class="cross">✗</span></td>
+        <td><span class="cross">✗</span></td>
+      </tr>
+      <tr>
+        <td>IA para planeaciones, exámenes y guías</td>
+        <td><span class="check">✓</span></td>
+        <td><span class="cross">✗</span></td>
+        <td><span class="partial">Básica</span></td>
+        <td><span class="partial">Solo comunicados</span></td>
+      </tr>
+      <tr>
+        <td>Gamificación para alumnos (XP, insignias)</td>
+        <td><span class="check">✓</span></td>
+        <td><span class="cross">✗</span></td>
+        <td><span class="check">✓</span></td>
+        <td><span class="cross">✗</span></td>
+      </tr>
+      <tr>
+        <td>Recuperaciones con guía IA personalizada</td>
+        <td><span class="check">✓</span></td>
+        <td><span class="cross">✗</span></td>
+        <td><span class="cross">✗</span></td>
+        <td><span class="cross">✗</span></td>
+      </tr>
+      <tr>
+        <td>Escuelas públicas (SEP)</td>
+        <td><span class="check">✓</span></td>
+        <td><span class="cross">Solo privadas</span></td>
+        <td><span class="check">✓</span></td>
+        <td><span class="cross">Solo privadas</span></td>
+      </tr>
+      <tr>
+        <td>Multi-metodología (IB, Montessori, NEM…)</td>
+        <td><span class="check">✓</span></td>
+        <td><span class="check">✓</span></td>
+        <td><span class="cross">✗</span></td>
+        <td><span class="cross">✗</span></td>
+      </tr>
+      <tr>
+        <td>PWA — sin instalar app</td>
+        <td><span class="check">✓</span></td>
+        <td><span class="cross">App requerida</span></td>
+        <td><span class="cross">App requerida</span></td>
+        <td><span class="cross">App requerida</span></td>
+      </tr>
+      <tr>
+        <td>Precio público en MXN</td>
+        <td style="color:var(--verde);font-weight:800;">Desde $499 MXN/mes</td>
+        <td><span class="partial">Cotizar</span></td>
+        <td>Gratis / Plus</td>
+        <td><span class="partial">Cotizar</span></td>
+      </tr>
+      <tr>
+        <td>Soporte en México (zona horaria)</td>
+        <td><span class="check">✓</span></td>
+        <td><span class="partial">España</span></td>
+        <td><span class="partial">EE.UU.</span></td>
+        <td><span class="check">✓</span></td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- TESTIMONIOS -->
+<section class="testimonials">
+  <div style="text-align:center;">
+    <div class="section-label">Testimonios</div>
+    <div class="section-title">Lo que dicen nuestros<br>directores y docentes</div>
+  </div>
+
+  <div class="testi-grid">
+    <div class="testi-card">
+      <div class="testi-stars">★★★★★</div>
+      <div class="testi-text">"SIEMBRA transformó la comunicación con los padres. Antes tardaba días en que se enteraran de una inasistencia. Ahora la alerta llega al instante y los papás responden ese mismo día."</div>
+      <div class="testi-author">
+        <div class="testi-avatar" style="background:#dcfce7;">👩‍💼</div>
+        <div>
+          <div class="testi-name">Lic. Patricia Morales</div>
+          <div class="testi-role">Directora · Esc. Primaria Benito Juárez, CDMX</div>
+        </div>
+      </div>
+    </div>
+    <div class="testi-card">
+      <div class="testi-stars">★★★★★</div>
+      <div class="testi-text">"El generador de exámenes con IA me ahorra al menos 3 horas a la semana. Antes capturaba calificaciones en papel y las pasaba a Excel. Ahora todo está en un solo lugar y los padres lo ven en tiempo real."</div>
+      <div class="testi-author">
+        <div class="testi-avatar" style="background:#dbeafe;">👨‍🏫</div>
+        <div>
+          <div class="testi-name">Prof. Carlos Jiménez</div>
+          <div class="testi-role">Docente 5° grado · Secundaria Técnica #47, Monterrey</div>
+        </div>
+      </div>
+    </div>
+    <div class="testi-card">
+      <div class="testi-stars">★★★★★</div>
+      <div class="testi-text">"Como trabajadora social, finalmente tengo un módulo diseñado para mis necesidades. El directorio de instituciones y el seguimiento de casos me permite atender a las familias con mucha más eficiencia."</div>
+      <div class="testi-author">
+        <div class="testi-avatar" style="background:#fce7f3;">👩‍⚕️</div>
+        <div>
+          <div class="testi-name">Lic. Ana Rodríguez</div>
+          <div class="testi-role">Trabajadora Social · Colegio Tepeyac, Guadalajara</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PRECIOS -->
+<section class="pricing" id="precios">
+  <div style="text-align:center;">
+    <div class="section-label">Precios transparentes</div>
+    <div class="section-title">Sin sorpresas,<br>sin contratos anuales</div>
+    <p class="section-sub" style="margin:0 auto;">Planes diseñados para el presupuesto real de las escuelas mexicanas. Cancela cuando quieras.</p>
+  </div>
+
+  <div class="pricing-grid" style="margin:0 auto;">
+    <div class="price-card">
+      <div class="price-name">Inicio</div>
+      <div style="margin:12px 0;">
+        <div class="price-amount"><sup>$</sup>499 <span>MXN/mes</span></div>
+      </div>
+      <div class="price-desc">Ideal para escuelas pequeñas que empiezan su transformación digital.</div>
+      <ul class="price-list">
+        <li>Hasta 150 alumnos</li>
+        <li>Calificaciones y asistencia</li>
+        <li>Portal para padres y alumnos</li>
+        <li>Chat docente-padre</li>
+        <li>20 consultas IA / mes</li>
+        <li>Soporte por correo</li>
+      </ul>
+      <button class="btn-price btn-price-outline">Comenzar gratis 30 días</button>
+    </div>
+
+    <div class="price-card featured">
+      <div class="price-badge">⭐ Más popular</div>
+      <div class="price-name">Escuela</div>
+      <div style="margin:12px 0;">
+        <div class="price-amount"><sup>$</sup>999 <span>MXN/mes</span></div>
+      </div>
+      <div class="price-desc">Para escuelas que quieren aprovechar al máximo la IA y todas las funciones.</div>
+      <ul class="price-list">
+        <li>Hasta 500 alumnos</li>
+        <li>Todo del plan Inicio</li>
+        <li>IA ilimitada</li>
+        <li>Módulo de recuperaciones</li>
+        <li>Trabajo Social</li>
+        <li>Reportes SEP automáticos</li>
+        <li>Multi-metodología</li>
+        <li>Soporte prioritario WhatsApp</li>
+      </ul>
+      <button class="btn-price btn-price-featured">Comenzar gratis 30 días →</button>
+    </div>
+
+    <div class="price-card">
+      <div class="price-name">Red Escolar</div>
+      <div style="margin:12px 0;">
+        <div class="price-amount"><sup>$</sup>2,499 <span>MXN/mes</span></div>
+      </div>
+      <div class="price-desc">Para zonas escolares, patronatos o redes de colegios privados.</div>
+      <ul class="price-list">
+        <li>Alumnos ilimitados</li>
+        <li>Hasta 10 escuelas</li>
+        <li>Todo del plan Escuela</li>
+        <li>Dashboard de zona/red</li>
+        <li>Superadmin con analytics</li>
+        <li>API para integraciones</li>
+        <li>Onboarding dedicado</li>
+        <li>Gerente de cuenta asignado</li>
+      </ul>
+      <button class="btn-price btn-price-outline">Contactar ventas</button>
+    </div>
+
+    <div class="price-card">
+      <div class="price-name">🏛️ Escuela Pública</div>
+      <div style="margin:12px 0;">
+        <div class="price-amount" style="font-size:32px;">Convenio</div>
+        <div style="font-size:13px;color:#94a3b8;margin-top:4px;">SEP / Supervisión de zona</div>
+      </div>
+      <div class="price-desc">Tarifas especiales para escuelas públicas con aval de supervisión o zona escolar.</div>
+      <ul class="price-list">
+        <li>Todo del plan Escuela</li>
+        <li>Integración con SIGE SEP</li>
+        <li>Capacitación CTE incluida</li>
+        <li>Boleta oficial SEP</li>
+        <li>Precio subsidiado</li>
+      </ul>
+      <button class="btn-price btn-price-outline">Solicitar convenio</button>
+    </div>
+  </div>
+</section>
+
+<!-- CTA FINAL -->
+<section class="cta-final" id="contacto">
+  <div class="section-title">¿Listo para transformar<br>tu escuela?</div>
+  <p>Únete a más de 1,200 docentes, directores y padres que ya gestionan su comunidad escolar con SIEMBRA. Sin tarjeta de crédito. Sin contrato anual.</p>
+  <div class="cta-actions">
+    <button class="btn-cta-primary">🚀 Empezar gratis — 30 días sin costo</button>
+    <button class="btn-cta-ghost">📞 Hablar con un asesor</button>
+  </div>
+  <div style="margin-top:32px;font-size:13px;color:rgba(255,255,255,.35);">
+    ¿Tienes preguntas? Escríbenos a <span style="color:var(--acento);">hola@siembra.edu.mx</span> o por WhatsApp al <span style="color:var(--acento);">+52 81 1234 5678</span>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-grid">
+    <div class="footer-brand">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#0d5c2f,#16a34a);display:flex;align-items:center;justify-content:center;font-size:18px;">🌱</div>
+        <span style="font-family:'Fraunces',serif;font-size:20px;font-weight:900;color:white;">SIEMBRA</span>
+      </div>
+      <p>Sistema integral de gestión escolar con inteligencia artificial. Diseñado en México, para México.</p>
+      <div style="display:flex;gap:12px;margin-top:16px;">
+        <a href="#" style="color:rgba(255,255,255,.4);font-size:20px;text-decoration:none;">𝕏</a>
+        <a href="#" style="color:rgba(255,255,255,.4);font-size:20px;text-decoration:none;">📘</a>
+        <a href="#" style="color:rgba(255,255,255,.4);font-size:20px;text-decoration:none;">📸</a>
+        <a href="#" style="color:rgba(255,255,255,.4);font-size:20px;text-decoration:none;">▶</a>
+      </div>
+    </div>
+    <div class="footer-col">
+      <h4>Producto</h4>
+      <a href="#">Funciones</a>
+      <a href="#">Precios</a>
+      <a href="#">Metodologías</a>
+      <a href="#">IA Educativa</a>
+      <a href="#">API</a>
+    </div>
+    <div class="footer-col">
+      <h4>Escuelas</h4>
+      <a href="#">Escuelas públicas</a>
+      <a href="#">Colegios privados</a>
+      <a href="#">Redes escolares</a>
+      <a href="#">Convenios SEP</a>
+      <a href="#">Demo gratuita</a>
+    </div>
+    <div class="footer-col">
+      <h4>Soporte</h4>
+      <a href="#">Centro de ayuda</a>
+      <a href="#">Tutoriales</a>
+      <a href="#">WhatsApp</a>
+      <a href="#">Blog educativo</a>
+      <a href="#">Novedades</a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>© 2026 SIEMBRA. Todos los derechos reservados.</span>
+    <div style="display:flex;gap:20px;">
+      <a href="#">Privacidad</a>
+      <a href="#">Términos</a>
+      <a href="#">LFPDPPP</a>
+    </div>
+    <span style="color:rgba(255,255,255,.2);">Hecho con ❤️ en México 🇲🇽</span>
+  </div>
+</footer>
+
+<script>
+  // Navbar scroll shadow
+  window.addEventListener('scroll', () => {
+    document.getElementById('navbar').classList.toggle('scrolled', window.scrollY > 20);
+  });
+
+  // Smooth reveal on scroll
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.style.opacity = '1';
+        e.target.style.transform = 'translateY(0)';
+      }
+    });
+  }, { threshold: 0.1 });
+
+  document.querySelectorAll('.feature-card, .role-card, .met-card, .ia-card, .price-card, .testi-card').forEach(el => {
+    el.style.opacity = '0';
+    el.style.transform = 'translateY(24px)';
+    el.style.transition = 'opacity .5s ease, transform .5s ease';
+    observer.observe(el);
+  });
+</script>
+</body>
+</html>

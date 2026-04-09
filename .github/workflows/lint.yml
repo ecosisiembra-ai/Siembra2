@@ -1,0 +1,96 @@
+name: SIEMBRA — CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  lint-y-unit:
+    name: Lint + Tests unitarios
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Verificar aria-label en botones de ícono
+        run: |
+          node -e "
+          const fs = require('fs');
+          const files = ['index.html', 'alumno.html', 'padres.html', 'sa.html'];
+          const ICON_ONLY = /^[\s\u00A0\u2000-\u206F\u2600-\u27BF\uFE00-\uFEFF\uD83C-\uDBFF\uDC00-\uDFFF]{1,4}$/u;
+          let hasError = false;
+          files.forEach(file => {
+            if (!fs.existsSync(file)) return;
+            const html = fs.readFileSync(file, 'utf8');
+            const re = /<button([^>]*)>([\s\S]*?)<\/button>/gi;
+            let match, i = 0;
+            while ((match = re.exec(html)) !== null) {
+              i++;
+              const attrs = match[1], content = match[2].trim();
+              if (ICON_ONLY.test(content) && !attrs.includes('aria-label') && !attrs.includes('aria-hidden')) {
+                console.error('Warning ' + file + ' btn#' + i + ': sin aria-label: ' + JSON.stringify(content));
+                hasError = true;
+              }
+            }
+          });
+          if (!hasError) console.log('OK todos los botones icono tienen aria-label');
+          "
+
+      - name: Validar sintaxis JS en HTML
+        run: |
+          node -e "
+          const fs = require('fs'), vm = require('vm');
+          const files = ['index.html', 'alumno.html', 'padres.html', 'sa.html'];
+          let hasError = false;
+          files.forEach(file => {
+            if (!fs.existsSync(file)) { console.log(file + ': omitido'); return; }
+            const content = fs.readFileSync(file, 'utf8');
+            const regex = /<script(?![^>]*src)[^>]*>([\s\S]*?)<\/script>/gi;
+            let match, i = 0;
+            while ((match = regex.exec(content)) !== null) {
+              i++;
+              const code = match[1];
+              if (!code.trim()) continue;
+              try { new vm.Script(code); }
+              catch(e) { console.error('ERROR ' + file + ' bloque#' + i + ': ' + e.message); hasError = true; }
+            }
+            if (!hasError) console.log('OK ' + file);
+          });
+          if (hasError) process.exit(1);
+          "
+
+      - name: Tests unitarios
+        run: node tests/unit/run.js
+
+  e2e:
+    name: Tests E2E (Playwright)
+    runs-on: ubuntu-latest
+    needs: lint-y-unit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Instalar dependencias
+        run: npm install
+
+      - name: Instalar Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Correr tests E2E
+        run: npx playwright test --project=chromium-desktop
+        env:
+          CI: true
+
+      - name: Subir reporte
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: tests/e2e/report/
+          retention-days: 14
