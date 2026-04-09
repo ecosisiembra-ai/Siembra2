@@ -1054,6 +1054,12 @@ async function admConfirmarImport(tipo) {
           const apellido_m = (d.apellido_m || d.apellidos?.split(' ').slice(1).join(' ') || '').trim();
           const codigo = ADM._generarCodigoCorto();
 
+          // Email: usar el del CSV si viene; si no, generar uno placeholder único
+          // (la columna es NOT NULL en el DB vivo; los alumnos no siempre tienen email)
+          const _emailBase = (d.email_alumno || '').trim();
+          const _emailPlaceholder = _emailBase
+            || `alumno_${(d.curp || codigo).toLowerCase().replace(/[^a-z0-9]/g,'_')}@${escuelaCct.toLowerCase().replace(/[^a-z0-9]/g,'')}.siembra`;
+
           const payload = {
             nombre:             d.nombre.trim(),
             apellido_p,
@@ -1063,7 +1069,7 @@ async function admConfirmarImport(tipo) {
             num_lista:          parseInt(d.num_lista) || null,
             tutor_nombre:       d.tutor_nombre || null,
             telefono_tutor:     d.telefono_tutor || null,
-            email:              d.email_alumno || null,
+            email:              _emailPlaceholder,
             rol:                'alumno',
             activo:             true,
             codigo_vinculacion: codigo,
@@ -6365,19 +6371,22 @@ async function admCargarHorarios() {
 
 async function admCargarConfigTurno() {
   if (!window.sb || !window.currentPerfil?.escuela_cct) return;
+  const _cct = window.currentPerfil.escuela_cct;
   try {
-    const { data } = await window.sb.from('escuelas')
-      .select('turno, hora_inicio_clases, duracion_clase_min')
-      .eq('cct', window.currentPerfil.escuela_cct)
-      .maybeSingle();
-    if (data) {
-      const turnoSel = document.getElementById('adm-turno-escuela');
-      const horaEl   = document.getElementById('adm-hora-inicio');
-      const durEl    = document.getElementById('adm-dur-clase');
-      if (turnoSel) turnoSel.value = data.turno || 'matutino';
-      if (horaEl)   horaEl.value   = data.hora_inicio_clases || (data.turno === 'vespertino' ? '13:00' : '07:00');
-      if (durEl)    durEl.value    = data.duracion_clase_min || 50;
-    }
+    // Cargar turno base desde escuelas
+    const { data: escData } = await window.sb.from('escuelas')
+      .select('turno').eq('cct', _cct).maybeSingle();
+    // Cargar config extendida desde config_global
+    const { data: cfgData } = await window.sb.from('config_global')
+      .select('valor').eq('clave', `horario_config_${_cct}`).maybeSingle();
+    const cfg = cfgData?.valor || {};
+    const turno = cfg.turno || escData?.turno || 'matutino';
+    const turnoSel = document.getElementById('adm-turno-escuela');
+    const horaEl   = document.getElementById('adm-hora-inicio');
+    const durEl    = document.getElementById('adm-dur-clase');
+    if (turnoSel) turnoSel.value = turno;
+    if (horaEl)   horaEl.value   = cfg.hora_inicio_clases || (turno === 'vespertino' ? '13:00' : '07:00');
+    if (durEl)    durEl.value    = cfg.duracion_clase_min || 50;
   } catch(e) {}
 }
 
@@ -6390,17 +6399,23 @@ async function admGuardarConfigTurno() {
   if (!window.sb || !_cct) {
     hubToast('⚠️ Sin conexión a base de datos', 'warn'); return;
   }
-  await window.sb.from('escuelas').update({
-    turno,
-    hora_inicio_clases: horaInicio,
-    duracion_clase_min: duracion,
-  }).eq('cct', _cct);
 
-  // Actualizar config global
+  // 1. Intentar guardar en escuelas (campos opcionales — pueden no existir en DB live)
+  const { error: errEsc } = await window.sb.from('escuelas').update({ turno }).eq('cct', _cct);
+
+  // 2. Guardar config extendida en config_global (siempre disponible)
+  await window.sb.from('config_global').upsert({
+    clave: `horario_config_${_cct}`,
+    valor: { turno, hora_inicio_clases: horaInicio, duracion_clase_min: duracion },
+  }, { onConflict: 'clave' }).catch(() => {});
+
+  // Actualizar estado local
   if (window._escuelaCfg) {
     window._escuelaCfg.turno = turno;
     window._escuelaCfg.hora_inicio_clases = horaInicio;
+    window._escuelaCfg.duracion_clase_min = duracion;
   }
+  if (errEsc) console.warn('[admGuardarConfigTurno] escuelas update:', errEsc.message);
   hubToast('✅ Configuración de turno guardada', 'ok');
 }
 
@@ -9459,13 +9474,22 @@ async function admPublicarAnuncio() {
   };
 
   try {
+    // Verificar / refrescar sesión antes de insertar
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) { await sb.auth.refreshSession(); }
+
     const { error } = await sb.from('anuncios').insert(payload);
     if (error) throw error;
     document.getElementById('adm-anuncio-form').style.display = 'none';
     hubToast('📢 Anuncio publicado');
     admCargarAnunciosAdmin();
   } catch(e) {
-    hubToast('❌ ' + e.message);
+    const msg = e.message || '';
+    if (msg.toLowerCase().includes('sesion') || msg.toLowerCase().includes('session') || msg.includes('JWT')) {
+      hubToast('❌ Sesión expirada — recarga la página e inicia sesión nuevamente.');
+    } else {
+      hubToast('❌ ' + msg);
+    }
   }
 }
 
@@ -9663,6 +9687,20 @@ async function publicarAnuncioGlobal() {
     const cct2 = window.currentPerfil?.escuela_cct;
     if (!cct2) { errEl.textContent='No se pudo identificar la escuela. Recarga la página.'; errEl.style.display='block'; return; }
   }
+
+  // Verificar sesión activa antes de publicar
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) {
+      // Intentar refrescar
+      const { data: refreshed } = await sb.auth.refreshSession();
+      if (!refreshed?.session) {
+        errEl.textContent = 'Tu sesión expiró. Recarga la página e inicia sesión nuevamente.';
+        errEl.style.display = 'block';
+        return;
+      }
+    }
+  } catch(_) {}
 
   btn.disabled=true; btn.textContent='Publicando…';
   errEl.style.display='none';

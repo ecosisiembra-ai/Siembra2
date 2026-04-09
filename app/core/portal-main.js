@@ -2435,6 +2435,16 @@ function calRenderMatTabs() {
   }
 
   if (!mats.length) mats = getMateriasByNivel(window._nivelActivo || 'secundaria');
+
+  // Excluir campos formativos — solo mostrar materias específicas
+  const _CAMPOS_FORM = [
+    'Lenguajes','Saberes y Pensamiento Científico','Ética, Naturaleza y Sociedades',
+    'De lo Humano y lo Comunitario','Pensamiento Matemático',
+    'Exploración de la Naturaleza y la Sociedad','Desarrollo Personal y Social','Conocimiento del Medio',
+  ];
+  mats = mats.filter(m => !_CAMPOS_FORM.includes(m));
+  if (!mats.length) mats = getMateriasByNivel(window._nivelActivo || 'secundaria').filter(m => !_CAMPOS_FORM.includes(m));
+
   if (mats.length && !mats.includes(calMatActual)) calMatActual = mats[0];
 
   wrap.innerHTML = mats.map(m => `

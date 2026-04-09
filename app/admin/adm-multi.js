@@ -1327,7 +1327,7 @@ ADM.eliminarGrupo = async function(id, nombre) {
   const sbRef = window.sb || ADM.sb;
   if (!sbRef) { ADM.toast('❌ Sin conexión a base de datos', 'err'); return; }
   try {
-    const { error } = await sbRef.from('grupos').update({ activo: false, updated_at: new Date().toISOString() }).eq('id', id);
+    const { error } = await sbRef.from('grupos').update({ activo: false }).eq('id', id);
     if (error) throw error;
     // Re-fetch from server to ensure consistency
     await ADM.cargarGrupos();
@@ -3071,25 +3071,25 @@ ADM.renderMaterias = function() {
       id: 'lenguajes', emoji: '📖', color: '#1e40af', bg: '#eff6ff', border: '#bfdbfe',
       nombre: 'Lenguajes',
       materias: () => ['Lengua Materna (Español)','Segunda Lengua (Inglés)','Educación Artística'],
-      horas: {}
+      horas: { 'Lengua Materna (Español)':9, 'Segunda Lengua (Inglés)':2, 'Educación Artística':1 }
     },
     {
       id: 'saberes', emoji: '🔬', color: '#166534', bg: '#f0fdf4', border: '#86efac',
       nombre: 'Saberes y Pensamiento Científico',
       materias: () => ['Matemáticas','Ciencias Naturales y Tecnología'],
-      horas: {}
+      horas: { 'Matemáticas':6, 'Ciencias Naturales y Tecnología':3 }
     },
     {
       id: 'etica', emoji: '🌍', color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe',
       nombre: 'Ética, Naturaleza y Sociedades',
       materias: () => ['Historia','Geografía','Formación Cívica y Ética'],
-      horas: {}
+      horas: { 'Historia':2, 'Geografía':2, 'Formación Cívica y Ética':1 }
     },
     {
       id: 'humano', emoji: '🤝', color: '#c2410c', bg: '#fff7ed', border: '#fed7aa',
       nombre: 'De lo Humano y lo Comunitario',
       materias: () => ['Educación Física','Vida Saludable','Proyecto de Aula','Tutoría y Participación Social'],
-      horas: {}
+      horas: { 'Educación Física':2, 'Vida Saludable':1, 'Proyecto de Aula':3, 'Tutoría y Participación Social':1 }
     },
   ];
 
@@ -3186,7 +3186,8 @@ ADM.renderMaterias = function() {
               ${campo.matsGrado.map(mat => {
                 const docs = asigGrado.filter(a => a.materia === mat);
                 const tieneDoc = docs.length > 0;
-                const horas = campo.horas[mat] || 3;
+                const _matDB = (ADM.materias || []).find(m => m.nombre === mat);
+                const horas = (_matDB?.horas_semana) || campo.horas[mat] || 3;
 
                 return `
                 <div style="padding:10px 20px 10px 48px;border-top:1px solid #f8fafc;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
