@@ -23,6 +23,17 @@ async function seleccionarEscuelaSiAplica(page) {
   const exists = await select.count();
   if (!exists) return;
 
+  // Esperar hasta 8s a que Supabase cargue las escuelas (el selector pasa de 1 a >1 opciones)
+  try {
+    await page.waitForFunction(
+      () => (document.querySelectorAll('#hub-escuela-sel option').length > 1),
+      { timeout: 8000 }
+    );
+  } catch {
+    // Sin escuelas disponibles en este entorno — test no aplica
+    return;
+  }
+
   const optionCount = await page.locator('#hub-escuela-sel option').count();
   if (optionCount > 1) {
     const value = await page.locator('#hub-escuela-sel option').nth(1).getAttribute('value');
