@@ -3486,7 +3486,25 @@ ADM.renderMaterias = function() {
   if (!el) return;
 
   const nivelEsc = ADM.escuelaNivel || window._admNivelActivo || window._nivelActivo || 'secundaria';
-  const asignaciones = window._admMateriasData || [];
+
+  // ── Construir mapa de cobertura desde _admAsignaciones (fuente real) ──
+  // grupoId → materia(norm) → [{ nomDoc, docenteId, asignId, materia }]
+  const normM = s => String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
+  const asigns = ADM.asignacionesPorDocente || window._admAsignaciones || {};
+  const cobPorGrupo = {};
+  Object.entries(asigns).forEach(([docId, rows]) => {
+    const doc = (ADM.docentes || []).find(d => d.id === docId);
+    const nomDoc = doc ? ((doc.nombre||'') + ' ' + (doc.apellido||doc.apellido_p||'')).trim() : '—';
+    (rows || []).forEach(a => {
+      if (!a.grupo_id) return;
+      const gid = a.grupo_id;
+      if (!cobPorGrupo[gid]) cobPorGrupo[gid] = {};
+      const key = normM(a.materia);
+      if (!cobPorGrupo[gid][key]) cobPorGrupo[gid][key] = [];
+      cobPorGrupo[gid][key].push({ nomDoc, docenteId: docId, asignId: a.id, materia: a.materia });
+    });
+  });
+
 
   // ── Estructura por año y campo formativo ──────────────────────
   const GRADOS_SEC = [
@@ -3572,118 +3590,182 @@ ADM.renderMaterias = function() {
     gruposPorGrado[gr].push(g);
   });
 
+  // ── Helper: contar materias cubiertas en un grupo usando cobPorGrupo ──
+  const matCubiertaEnGrupo = (grupoId, mat) => !!(cobPorGrupo[grupoId]?.[normM(mat)]?.length);
+  const docsDeMatEnGrupo   = (grupoId, mat) => cobPorGrupo[grupoId]?.[normM(mat)] || [];
+
   el.innerHTML = grados.map((gradoInfo, gi) => {
     const gruposDeEsteGrado = gruposPorGrado[gradoInfo.grado] || [];
-    const grupoNombres = gruposDeEsteGrado.map(g => g.nombre || g.grado+'°'+(g.seccion||'A')).join(', ');
 
-    // Construir campos para este grado
-    const camposDeGrado = campos.map(campo => {
-      const mats = campo.materias(gradoInfo.ciencias || '', gradoInfo.grado);
-      return { ...campo, matsGrado: mats };
+    // Campos de este grado
+    const camposDeGrado = campos.map(campo => ({
+      ...campo,
+      matsGrado: campo.materias(gradoInfo.ciencias || '', gradoInfo.grado),
+    }));
+    const totalMatsGrado = camposDeGrado.reduce((s, c) => s + c.matsGrado.length, 0);
+
+    // Cobertura total del año (materias únicas cubiertas en ALGÚN grupo del grado)
+    const matsCubiertasAnio = new Set();
+    gruposDeEsteGrado.forEach(g => {
+      camposDeGrado.forEach(campo => {
+        campo.matsGrado.forEach(mat => {
+          if (matCubiertaEnGrupo(g.id, mat)) matsCubiertasAnio.add(mat);
+        });
+      });
+    });
+    // Total esperado = materias × grupos (cada grupo debe tener cada materia cubierta)
+    const totalEsperadoAnio = totalMatsGrado * Math.max(gruposDeEsteGrado.length, 1);
+    let totalCubiertoAnio = 0;
+    gruposDeEsteGrado.forEach(g => {
+      camposDeGrado.forEach(campo => {
+        campo.matsGrado.forEach(mat => {
+          if (matCubiertaEnGrupo(g.id, mat)) totalCubiertoAnio++;
+        });
+      });
     });
 
-    // Contar asignaciones completas de este grado
-    const totalMats = camposDeGrado.reduce((s, c) => s + c.matsGrado.length, 0);
-    const asigGrado = asignaciones.filter(a => {
-      const grupoIds = gruposDeEsteGrado.map(g => g.id);
-      return grupoIds.includes(a.grupo_id);
-    });
-    const matsConDoc = new Set(asigGrado.map(a => a.materia));
-    const completadas = camposDeGrado.reduce((s, c) =>
-      s + c.matsGrado.filter(m => matsConDoc.has(m)).length, 0);
+    const sinGrupo   = gruposDeEsteGrado.length === 0;
+    const todoCompleto = !sinGrupo && totalCubiertoAnio === totalEsperadoAnio && totalEsperadoAnio > 0;
+    const faltanAnio = totalEsperadoAnio - totalCubiertoAnio;
 
-    const todoCompleto = completadas === totalMats && totalMats > 0;
-    const sinGrupo = gruposDeEsteGrado.length === 0;
+    const borderColor = todoCompleto ? '#86efac' : sinGrupo ? '#e2e8f0' : '#fde68a';
+    const bgHeader    = todoCompleto ? '#f0fdf4' : sinGrupo ? '#f8fafc' : '#fffbeb';
+    const bgAvatar    = todoCompleto ? '#0d5c2f' : sinGrupo ? '#94a3b8' : '#b45309';
+
+    // ── Bloques por grupo dentro del año ──────────────────────────────
+    const gruposHtml = sinGrupo
+      ? `<div style="padding:16px 20px;font-size:13px;color:#94a3b8;text-align:center;">
+           Sin grupos creados para este año — <button onclick="ADM.abrirModalGrupo()" style="background:none;border:none;color:#0d5c2f;font-weight:700;cursor:pointer;font-family:inherit;font-size:13px;">+ Crear grupo</button>
+         </div>`
+      : gruposDeEsteGrado.map((grupo, gri) => {
+          const gid = grupo.id;
+          const nomGrupo = grupo.nombre || (grupo.grado + '° ' + (grupo.seccion || ''));
+          const turno    = grupo.turno ? ` · ${grupo.turno}` : '';
+
+          // Cobertura de este grupo
+          let cubGrupo = 0, totalGrupo = 0;
+          camposDeGrado.forEach(campo => {
+            campo.matsGrado.forEach(mat => {
+              totalGrupo++;
+              if (matCubiertaEnGrupo(gid, mat)) cubGrupo++;
+            });
+          });
+          const pctGrupo = totalGrupo ? Math.round((cubGrupo / totalGrupo) * 100) : 0;
+          const faltanGrupo = totalGrupo - cubGrupo;
+          const grupoCompleto = cubGrupo === totalGrupo && totalGrupo > 0;
+          const colGrupo = grupoCompleto ? '#16a34a' : faltanGrupo > totalGrupo * 0.5 ? '#dc2626' : '#d97706';
+
+          const grupoKey = `g-${gi}-${gri}`;
+
+          // Campos formativos dentro del grupo
+          const camposHtml = camposDeGrado.map((campo, ci) => {
+            let cubCampo = 0;
+            campo.matsGrado.forEach(mat => { if (matCubiertaEnGrupo(gid, mat)) cubCampo++; });
+            const campoKey = `c-${gi}-${gri}-${ci}`;
+
+            const materiasHtml = campo.matsGrado.map(mat => {
+              const docs    = docsDeMatEnGrupo(gid, mat);
+              const tieneDoc = docs.length > 0;
+              const _matDB   = (ADM.materias || []).find(m => m.nombre === mat);
+              const horas    = (_matDB?.horas_semana) || campo.horas[mat] || 3;
+
+              const docsChips = tieneDoc
+                ? docs.map(d => `
+                    <span style="display:inline-flex;align-items:center;gap:4px;background:#f0fdf4;border:1px solid #86efac;color:#15803d;padding:2px 9px;border-radius:99px;font-size:10px;font-weight:600;margin:2px 2px 2px 0;">
+                      👩‍🏫 ${d.nomDoc}
+                    </span>`).join('')
+                : `<span style="font-size:10px;color:#94a3b8;font-style:italic;">Sin docente asignado</span>`;
+
+              return `
+                <div style="padding:9px 20px 9px 56px;border-top:1px solid #f1f5f9;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                  <div style="width:7px;height:7px;border-radius:50%;background:${tieneDoc ? campo.color : '#e2e8f0'};flex-shrink:0;"></div>
+                  <div style="min-width:150px;flex:1;">
+                    <div style="font-size:12px;font-weight:700;color:#0f172a;">${mat}</div>
+                    <div style="font-size:10px;color:#94a3b8;">${horas}h/semana</div>
+                  </div>
+                  <div style="flex:2;min-width:160px;">${docsChips}</div>
+                  <button onclick="ADM.abrirAsignarMaterias && (() => { const d=ADM.docentes[0]; admPMTab('personal'); setTimeout(()=>ADM.abrirAsignarMaterias(d?.id||'','${(ADM.docentes[0]?.nombre||'Docente').replace(/'/g,"\\'")}'),100); })()"
+                    style="padding:4px 10px;background:${tieneDoc?'#f8fafc':'#f0fdf4'};border:1.5px solid ${tieneDoc?'#e2e8f0':'#86efac'};color:${tieneDoc?'#475569':'#15803d'};border-radius:6px;font-family:'Sora',sans-serif;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;">
+                    ${tieneDoc ? '✏️ Editar' : '+ Asignar'}
+                  </button>
+                </div>`;
+            }).join('');
+
+            return `
+              <div style="border-top:1px solid #e2e8f0;">
+                <div onclick="admToggleCampo('${campoKey}')"
+                  style="background:${campo.bg};padding:10px 16px 10px 36px;display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;">
+                  <span style="font-size:14px;">${campo.emoji}</span>
+                  <div style="flex:1;">
+                    <div style="font-size:11px;font-weight:700;color:${campo.color};">${campo.nombre}</div>
+                    <div style="font-size:10px;color:#64748b;">${cubCampo}/${campo.matsGrado.length} materias con docente</div>
+                  </div>
+                  <span id="${campoKey}-arrow" style="font-size:13px;color:${campo.color};">▸</span>
+                </div>
+                <div id="${campoKey}" style="display:none;background:white;">${materiasHtml}</div>
+              </div>`;
+          }).join('');
+
+          return `
+            <div style="border-top:1px solid #e2e8f0;">
+              <!-- Header grupo -->
+              <div onclick="admToggleCampo('${grupoKey}')"
+                style="background:white;padding:12px 20px 12px 28px;display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none;transition:.15s;"
+                onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='white'">
+                <div style="width:32px;height:32px;border-radius:8px;background:${colGrupo};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:white;flex-shrink:0;">
+                  ${grupo.seccion || grupo.grado}
+                </div>
+                <div style="flex:1;">
+                  <div style="font-size:13px;font-weight:800;color:#0f172a;">${nomGrupo}${turno}</div>
+                  <div style="display:flex;align-items:center;gap:8px;margin-top:3px;">
+                    <div style="height:5px;width:80px;background:#e5e7eb;border-radius:999px;overflow:hidden;">
+                      <div style="width:${pctGrupo}%;height:100%;background:${colGrupo};border-radius:999px;"></div>
+                    </div>
+                    <span style="font-size:10px;color:${colGrupo};font-weight:700;">${cubGrupo}/${totalGrupo} materias</span>
+                  </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:6px;">
+                  ${grupoCompleto
+                    ? '<span style="background:#dcfce7;color:#15803d;font-size:9px;font-weight:700;padding:2px 8px;border-radius:99px;">✅ Completo</span>'
+                    : `<span style="background:#fef3c7;color:#a16207;font-size:9px;font-weight:700;padding:2px 8px;border-radius:99px;">⚠️ Faltan ${faltanGrupo}</span>`
+                  }
+                  <span id="${grupoKey}-arrow" style="font-size:16px;color:#94a3b8;">▸</span>
+                </div>
+              </div>
+              <!-- Campos del grupo (colapsables) -->
+              <div id="${grupoKey}" style="display:none;background:#fafafa;">${camposHtml}</div>
+            </div>`;
+        }).join('');
 
     return `
-    <!-- ── AÑO ${gradoInfo.grado} ── -->
-    <div style="border:2px solid ${todoCompleto?'#86efac':sinGrupo?'#e2e8f0':'#fde68a'};border-radius:16px;overflow:hidden;margin-bottom:16px;">
-
+    <div style="border:2px solid ${borderColor};border-radius:16px;overflow:hidden;margin-bottom:16px;">
       <!-- Header año -->
       <div onclick="admToggleCampo('anio-${gi}')"
-        style="background:${todoCompleto?'#f0fdf4':sinGrupo?'#f8fafc':'#fffbeb'};padding:16px 20px;display:flex;align-items:center;gap:14px;cursor:pointer;user-select:none;">
-        <div style="width:40px;height:40px;border-radius:10px;background:${todoCompleto?'#0d5c2f':sinGrupo?'#94a3b8':'#b45309'};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;color:white;flex-shrink:0;">
+        style="background:${bgHeader};padding:16px 20px;display:flex;align-items:center;gap:14px;cursor:pointer;user-select:none;">
+        <div style="width:40px;height:40px;border-radius:10px;background:${bgAvatar};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;color:white;flex-shrink:0;">
           ${gradoInfo.grado}°
         </div>
         <div style="flex:1;">
           <div style="font-size:15px;font-weight:800;color:#0f172a;">${gradoInfo.label}</div>
           <div style="font-size:11px;color:#64748b;margin-top:2px;">
             ${sinGrupo
-              ? '⚠️ Sin grupo creado para este año'
-              : `Grupos: ${grupoNombres} · ${completadas}/${totalMats} materias asignadas`
-            }
+              ? '⚠️ Sin grupos creados para este año'
+              : `${gruposDeEsteGrado.length} grupo${gruposDeEsteGrado.length>1?'s':''} · ${totalCubiertoAnio}/${totalEsperadoAnio} asignaciones cubiertas`}
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:8px;">
           ${todoCompleto
             ? '<span style="background:#dcfce7;color:#15803d;font-size:10px;font-weight:700;padding:3px 10px;border-radius:99px;">✅ Completo</span>'
             : sinGrupo
-              ? '<span style="background:#f1f5f9;color:#64748b;font-size:10px;font-weight:700;padding:3px 10px;border-radius:99px;">Sin grupo</span>'
-              : `<span style="background:#fef9c3;color:#a16207;font-size:10px;font-weight:700;padding:3px 10px;border-radius:99px;">⚠️ Faltan ${totalMats - completadas}</span>`
+              ? '<span style="background:#f1f5f9;color:#64748b;font-size:10px;font-weight:700;padding:3px 10px;border-radius:99px;">Sin grupos</span>'
+              : `<span style="background:#fef9c3;color:#a16207;font-size:10px;font-weight:700;padding:3px 10px;border-radius:99px;">⚠️ Faltan ${faltanAnio}</span>`
           }
           <span id="anio-${gi}-arrow" style="font-size:18px;color:#64748b;transition:.2s;">▸</span>
         </div>
       </div>
-
-      <!-- Campos formativos del año (ocultos por defecto) -->
+      <!-- Grupos del año (colapsables) -->
       <div id="anio-${gi}" style="display:none;background:#fafafa;">
-        ${camposDeGrado.map((campo, ci) => {
-          const asigCampo = asignaciones.filter(a => {
-            const grupoIds = gruposDeEsteGrado.map(g => g.id);
-            return grupoIds.includes(a.grupo_id) && campo.matsGrado.includes(a.materia);
-          });
-          const matsConDocCampo = new Set(asigCampo.map(a => a.materia));
-          const completadasCampo = campo.matsGrado.filter(m => matsConDocCampo.has(m)).length;
-
-          return `
-          <div style="border-top:1px solid #e2e8f0;">
-            <!-- Header campo formativo -->
-            <div onclick="admToggleCampo('campo-${gi}-${ci}')"
-              style="background:${campo.bg};padding:12px 20px 12px 32px;display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none;">
-              <span style="font-size:16px;">${campo.emoji}</span>
-              <div style="flex:1;">
-                <div style="font-size:12px;font-weight:700;color:${campo.color};">${campo.nombre}</div>
-                <div style="font-size:10px;color:#64748b;">${completadasCampo}/${campo.matsGrado.length} materias con docente</div>
-              </div>
-              <span id="campo-${gi}-${ci}-arrow" style="font-size:14px;color:${campo.color};">▸</span>
-            </div>
-
-            <!-- Materias del campo (ocultas por defecto) -->
-            <div id="campo-${gi}-${ci}" style="display:none;background:white;">
-              ${campo.matsGrado.map(mat => {
-                const docs = asigGrado.filter(a => a.materia === mat);
-                const tieneDoc = docs.length > 0;
-                const _matDB = (ADM.materias || []).find(m => m.nombre === mat);
-                const horas = (_matDB?.horas_semana) || campo.horas[mat] || 3;
-
-                return `
-                <div style="padding:10px 20px 10px 48px;border-top:1px solid #f8fafc;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-                  <div style="width:6px;height:6px;border-radius:50%;background:${tieneDoc?campo.color:'#e2e8f0'};flex-shrink:0;"></div>
-                  <div style="min-width:160px;flex:1;">
-                    <div style="font-size:12px;font-weight:700;color:#0f172a;">${mat}</div>
-                    <div style="font-size:10px;color:#94a3b8;">${horas}h/semana</div>
-                  </div>
-                  <div style="flex:2;min-width:180px;">
-                    ${tieneDoc
-                      ? docs.map(d => {
-                          const nomDoc = `${d.usuarios?.nombre||''} ${d.usuarios?.apellido_p||''}`.trim() || '—';
-                          const grupo  = d.grupos?.nombre || '—';
-                          return `<span style="display:inline-flex;align-items:center;gap:4px;background:#f0fdf4;border:1px solid #86efac;color:#15803d;padding:2px 9px;border-radius:99px;font-size:10px;font-weight:600;margin:2px;">
-                            👩‍🏫 ${nomDoc} · ${grupo}
-                          </span>`;
-                        }).join('')
-                      : '<span style="font-size:10px;color:#94a3b8;font-style:italic;">Sin docente asignado</span>'
-                    }
-                  </div>
-                  <button onclick="admAbrirAsignarMateriaModal('${mat}','${campo.id}','${gradoInfo.grado}')"
-                    style="padding:4px 10px;background:${tieneDoc?'#f8fafc':'#f0fdf4'};border:1.5px solid ${tieneDoc?'#e2e8f0':'#86efac'};color:${tieneDoc?'#475569':'#15803d'};border-radius:6px;font-family:'Sora',sans-serif;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;">
-                    ${tieneDoc ? '✏️ Editar' : '+ Asignar'}
-                  </button>
-                </div>`;
-              }).join('')}
-            </div>
-          </div>`;
-        }).join('')}
+        ${gruposHtml}
       </div>
     </div>`;
   }).join('');
