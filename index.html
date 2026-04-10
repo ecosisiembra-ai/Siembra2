@@ -6865,9 +6865,11 @@ html, body { min-height:100vh; font-family:'Sora',sans-serif; overflow-x:hidden;
         <button id="adm-nav-dashboard"  class="adm-nav-btn active" onclick="ADM.navTo('dashboard')"><span style="font-size:15px;">🏠</span> Dashboard</button>
         <button id="adm-nav-grupos"     class="adm-nav-btn" onclick="ADM.navTo('grupos')"><span style="font-size:15px;">🏫</span> Grupos</button>
         <button id="adm-nav-cobertura"  class="adm-nav-btn" onclick="ADM.navTo('cobertura')"><span style="font-size:15px;">📈</span> Cobertura académica</button>
-        <button id="adm-nav-docentes"   class="adm-nav-btn" onclick="ADM.navTo('docentes')"><span style="font-size:15px;">👨‍🏫</span> Personal</button>
+        <button id="adm-nav-personal"   class="adm-nav-btn" onclick="ADM.navTo('personal')"><span style="font-size:15px;">👨‍🏫</span> Personal y materias</button>
         <button id="adm-nav-alumnos"    class="adm-nav-btn" onclick="ADM.navTo('alumnos')"><span style="font-size:15px;">👨‍🎓</span> Padrón escolar</button>
-        <button id="adm-nav-asignaciones" class="adm-nav-btn" onclick="ADM.navTo('asignaciones')"><span style="font-size:15px;">📚</span> Materias y asignaciones</button>
+        <!-- compat: docentes y asignaciones redirigen a personal via nav.js -->
+        <button id="adm-nav-docentes"     class="adm-nav-btn" style="display:none;" onclick="ADM.navTo('personal')"></button>
+        <button id="adm-nav-asignaciones" class="adm-nav-btn" style="display:none;" onclick="ADM.navTo('personal')"></button>
         <button id="adm-nav-horarios"   class="adm-nav-btn" onclick="ADM.navTo('horarios')"><span style="font-size:15px;">📅</span> Horarios</button>
         <button id="adm-nav-constructor" class="adm-nav-btn" onclick="ADM.navTo('constructor')" style="display:none;"><span style="font-size:15px;">🗓</span> Constructor horarios</button>
         <button id="adm-nav-horarios-pub" class="adm-nav-btn" onclick="ADM.navTo('horarios-pub')" style="display:none;"><span style="font-size:15px;">✅</span> Horarios publicados</button>
@@ -7049,13 +7051,53 @@ html, body { min-height:100vh; font-family:'Sora',sans-serif; overflow-x:hidden;
           <div id="adm-cobertura-tabla" style="overflow-x:auto;"></div>
         </div>
       </div>
-      <div class="adm-page" id="adm-p-docentes" style="display:none;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;flex-wrap:wrap;gap:10px;">
-          <div><h2 style="font-family:'Fraunces',serif;font-size:22px;color:#0d1a0f;font-weight:700;">Personal escolar</h2><div style="font-size:13px;color:#64748b;margin-top:2px;">Docentes, coordinadores, trabajo social, prefecto, subdirector</div></div>
-          <button onclick="ADM.abrirModalPersonal()" style="padding:10px 20px;background:linear-gradient(135deg,#0d5c2f,#157a40);color:white;border:none;border-radius:10px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(13,92,47,.3);transition:.2s;" onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform=''">+ Alta de personal</button>
+      <!-- ═══ PERSONAL Y MATERIAS (página unificada) ═══ -->
+      <div class="adm-page" id="adm-p-personal" style="display:none;">
+        <!-- Header -->
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h2 style="font-family:'Fraunces',serif;font-size:22px;color:#0d1a0f;font-weight:700;">📚 Personal y materias</h2>
+            <div style="font-size:13px;color:#64748b;margin-top:2px;">Altas de personal, catálogo académico y asignación docente desde un solo panel</div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button onclick="ADM.abrirModalPersonal()" style="padding:10px 18px;background:linear-gradient(135deg,#0d5c2f,#157a40);color:white;border:none;border-radius:10px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(13,92,47,.25);transition:.2s;" onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform=''">+ Alta de personal</button>
+            <button onclick="ADM.abrirModalMateria?.()" style="padding:10px 18px;background:white;border:1.5px solid #0d5c2f;color:#0d5c2f;border-radius:10px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:.2s;" onmouseover="this.style.background='#f0fdf4'" onmouseout="this.style.background='white'">+ Nueva materia</button>
+            <button onclick="ADM.abrirModalNuevaAsignacion?.()" style="padding:10px 18px;background:white;border:1.5px solid #0d5c2f;color:#0d5c2f;border-radius:10px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:.2s;" onmouseover="this.style.background='#f0fdf4'" onmouseout="this.style.background='white'">+ Nueva asignación</button>
+          </div>
         </div>
-        <div id="adm-docentes-list"></div>
+        <!-- KPI Cards -->
+        <div id="adm-personal-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px;"></div>
+        <!-- Tabs -->
+        <div style="display:flex;gap:0;border-bottom:2px solid #e2e8f0;margin-bottom:20px;">
+          <button id="adm-pm-tab-personal"     onclick="admPMTab('personal')"     style="padding:10px 20px;border:none;background:none;font-family:'Sora',sans-serif;font-size:13px;font-weight:700;color:#0d5c2f;border-bottom:2px solid #0d5c2f;margin-bottom:-2px;cursor:pointer;">👨‍🏫 Personal</button>
+          <button id="adm-pm-tab-catalogo"     onclick="admPMTab('catalogo')"     style="padding:10px 20px;border:none;background:none;font-family:'Sora',sans-serif;font-size:13px;font-weight:600;color:#64748b;cursor:pointer;">📖 Catálogo</button>
+          <button id="adm-pm-tab-asignaciones" onclick="admPMTab('asignaciones')" style="padding:10px 20px;border:none;background:none;font-family:'Sora',sans-serif;font-size:13px;font-weight:600;color:#64748b;cursor:pointer;">📊 Asignaciones</button>
+        </div>
+        <!-- Tab: Personal -->
+        <div id="adm-pm-panel-personal">
+          <div id="adm-docentes-list"></div>
+        </div>
+        <!-- Tab: Catálogo de materias -->
+        <div id="adm-pm-panel-catalogo" style="display:none;">
+          <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
+            <button onclick="ADM.abrirModalMateria?.()" style="padding:10px 18px;background:#0d5c2f;color:white;border:none;border-radius:10px;font-family:'Sora',sans-serif;font-size:13px;font-weight:700;cursor:pointer;">+ Nueva materia</button>
+          </div>
+          <div id="adm-materias-cat-list"></div>
+          <div style="margin-top:24px;padding-top:18px;border-top:1px solid #e5e7eb;">
+            <div style="font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">Asignaciones por docente</div>
+            <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+              <button onclick="ADM.abrirModalNuevaAsignacion?.()" style="padding:8px 16px;background:linear-gradient(135deg,#0d5c2f,#157a40);color:white;border:none;border-radius:8px;font-family:'Sora',sans-serif;font-size:12px;font-weight:700;cursor:pointer;">+ Nueva asignación</button>
+            </div>
+            <div id="adm-asignaciones-list"></div>
+          </div>
+        </div>
+        <!-- Tab: Mapa de cobertura (Asignaciones) -->
+        <div id="adm-pm-panel-asignaciones" style="display:none;">
+          <div id="adm-mapa-cobertura"></div>
+        </div>
       </div>
+      <!-- compat: página docentes vacía (redirigida a personal) -->
+      <div class="adm-page" id="adm-p-docentes" style="display:none;"></div>
       <div class="adm-page" id="adm-p-alumnos" style="display:none;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
           <div><h2 style="font-family:'Fraunces',serif;font-size:22px;color:#0d1a0f;font-weight:700;">Padrón escolar</h2><div style="font-size:13px;color:#64748b;margin-top:2px;">Alumnos inscritos · Ciclo 2025-2026</div></div>
@@ -7077,34 +7119,8 @@ html, body { min-height:100vh; font-family:'Sora',sans-serif; overflow-x:hidden;
         <!-- Panel: Ficha de inscripción (contenido movido de nem-ficha) -->
         <div id="adm-panel-ficha" style="display:none;"></div>
       </div>
-      <div class="adm-page" id="adm-p-asignaciones" style="display:none;">
-        <!-- Header -->
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px;">
-          <div>
-            <h2 style="font-family:'Fraunces',serif;font-size:22px;color:#0d1a0f;font-weight:700;">📚 Asignación de materias</h2>
-            <div style="font-size:13px;color:#64748b;">Catálogo de materias y asignación docente por grupo</div>
-          </div>
-        </div>
-        <!-- Tabs -->
-        <div style="display:flex;gap:0;border-bottom:2px solid #e2e8f0;margin-bottom:20px;">
-          <button id="adm-asig-tab-catalogo" onclick="admAsigTab('catalogo')" style="padding:10px 20px;border:none;background:none;font-family:'Sora',sans-serif;font-size:13px;font-weight:700;color:#0d5c2f;border-bottom:2px solid #0d5c2f;margin-bottom:-2px;cursor:pointer;">📖 Catálogo</button>
-          <button id="adm-asig-tab-asig" onclick="admAsigTab('asig')" style="padding:10px 20px;border:none;background:none;font-family:'Sora',sans-serif;font-size:13px;font-weight:600;color:#64748b;cursor:pointer;">🗂 Asignaciones</button>
-        </div>
-        <!-- Tab: Catálogo -->
-        <div id="adm-asig-panel-catalogo">
-          <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
-            <button onclick="ADM.abrirModalMateria()" style="padding:10px 18px;background:#0d5c2f;color:white;border:none;border-radius:10px;font-family:'Sora',sans-serif;font-size:13px;font-weight:700;cursor:pointer;">+ Nueva materia</button>
-          </div>
-          <div id="adm-materias-cat-list"></div>
-        </div>
-        <!-- Tab: Asignaciones -->
-        <div id="adm-asig-panel-asig" style="display:none;">
-          <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
-            <button onclick="ADM.abrirModalNuevaAsignacion()" style="padding:10px 20px;background:linear-gradient(135deg,#0d5c2f,#157a40);color:white;border:none;border-radius:10px;font-family:'Sora',sans-serif;font-size:13px;font-weight:700;cursor:pointer;">+ Nueva asignación</button>
-          </div>
-          <div id="adm-asignaciones-list"></div>
-        </div>
-      </div>
+      <!-- compat: página asignaciones vacía (redirigida a personal) -->
+      <div class="adm-page" id="adm-p-asignaciones" style="display:none;"></div>
       <div class="adm-page" id="adm-p-importar" style="display:none;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
           <div>

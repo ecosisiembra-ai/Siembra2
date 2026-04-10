@@ -1322,25 +1322,389 @@ ADM.guardarGruposMasivo = async function() {
   }
 };
 
-ADM.eliminarGrupo = async function(id, nombre) {
-  if (!confirm(`¿Eliminar el grupo ${nombre}? Los alumnos quedarán sin grupo.`)) return;
+ADM.eliminarGrupo = function(id, nombre) {
+  // Calcular impacto antes de mostrar modal
+  const alumnosCnt = ADM.alumnos.filter(a => a.alumnos_grupos?.some(ag => ag.grupo_id === id)).length;
+  const asignsCnt = Object.values(ADM.asignacionesPorDocente || window._admAsignaciones || {})
+    .flat().filter(a => a.grupo_id === id).length;
+
+  const otrosGrupos = (ADM.grupos || []).filter(g => g.id !== id);
+  const otrosOpts = otrosGrupos.map(g =>
+    `<option value="${g.id}">${g.nombre || (g.grado + '° ' + (g.seccion || ''))}</option>`
+  ).join('');
+
+  const impactoHtml = `
+    <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:14px;margin-bottom:16px;">
+      <div style="font-size:11px;font-weight:800;color:#9a3412;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">⚠️ Impacto de esta eliminación</div>
+      ${alumnosCnt
+        ? `<div style="font-size:13px;color:#7c2d12;margin-bottom:4px;">• <b>${alumnosCnt}</b> alumno${alumnosCnt > 1 ? 's' : ''} quedarán sin grupo asignado</div>`
+        : ''}
+      ${asignsCnt
+        ? `<div style="font-size:13px;color:#7c2d12;">• <b>${asignsCnt}</b> asignación${asignsCnt > 1 ? 'es' : ''} de docentes serán removidas</div>`
+        : ''}
+      ${!alumnosCnt && !asignsCnt
+        ? '<div style="font-size:13px;color:#7c2d12;">El grupo está vacío — sin impacto en alumnos ni docentes.</div>'
+        : ''}
+    </div>
+    ${(alumnosCnt || asignsCnt) && otrosGrupos.length ? `
+    <div style="margin-bottom:6px;">
+      <label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:6px;">
+        Reasignar alumnos y docentes a:
+      </label>
+      <select id="adm-reasignar-a-sel" style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:13px;outline:none;">
+        <option value="">— No reasignar (dejar sin grupo) —</option>
+        ${otrosOpts}
+      </select>
+      <div style="font-size:11px;color:#94a3b8;margin-top:5px;">Si seleccionas un grupo, los alumnos y asignaciones de docentes se moverán automáticamente antes de eliminar.</div>
+    </div>` : ''}`;
+
+  ADM.abrirModal(
+    'adm-modal-eliminar-grupo',
+    `🗑️ Eliminar grupo ${nombre}`,
+    impactoHtml,
+    `ADM._ejecutarEliminarGrupo('${id}','${nombre.replace(/'/g, "\\'")}')`,
+    'Eliminar grupo'
+  );
+};
+
+ADM._ejecutarEliminarGrupo = async function(id, nombre) {
   const sbRef = window.sb || ADM.sb;
   if (!sbRef) { ADM.toast('❌ Sin conexión a base de datos', 'err'); return; }
+
+  const reasignarA = document.getElementById('adm-reasignar-a-sel')?.value || null;
+  ADM.cerrarModal();
+
+  const alumnosCnt = ADM.alumnos.filter(a => a.alumnos_grupos?.some(ag => ag.grupo_id === id)).length;
+  const asignsCnt = Object.values(ADM.asignacionesPorDocente || window._admAsignaciones || {})
+    .flat().filter(a => a.grupo_id === id).length;
+
   try {
+    if (reasignarA) {
+      // Mover alumnos al nuevo grupo
+      const { error: errAlumnos } = await sbRef.from('alumnos_grupos').update({ grupo_id: reasignarA }).eq('grupo_id', id);
+      if (errAlumnos) throw errAlumnos;
+      // Mover asignaciones de docentes al nuevo grupo
+      const { error: errDocentes } = await sbRef.from('docente_grupos').update({ grupo_id: reasignarA }).eq('grupo_id', id).eq('activo', true);
+      if (errDocentes) throw errDocentes;
+    } else {
+      // Desconectar alumnos
+      const { error: errAlumnos } = await sbRef.from('alumnos_grupos').delete().eq('grupo_id', id);
+      if (errAlumnos) throw errAlumnos;
+      // Desactivar asignaciones de docentes
+      const { error: errDocentes } = await sbRef.from('docente_grupos').update({ activo: false }).eq('grupo_id', id);
+      if (errDocentes) throw errDocentes;
+    }
+
+    // Marcar grupo inactivo
     const { error } = await sbRef.from('grupos').update({ activo: false }).eq('id', id);
     if (error) throw error;
-    // Re-fetch from server to ensure consistency
+
     await ADM.cargarGrupos();
+    await ADM.cargarAlumnos();
+    await ADM.cargarAsignaciones?.();
     ADM.renderGrupos();
+    ADM.renderAlumnos?.();
     ADM.popularSelects();
     ADM.renderDashboard();
-    ADM.toast(`✅ Grupo ${nombre} eliminado`);
-  } catch(e) { ADM.toast('❌ ' + e.message, 'err'); console.error('[ADM.eliminarGrupo]', e); }
+
+    let msg = `✅ Grupo "${nombre}" eliminado`;
+    if (reasignarA) {
+      const gDest = ADM.grupos.find(g => g.id === reasignarA);
+      const nomDest = gDest?.nombre || gDest ? (gDest.grado + '° ' + (gDest.seccion || '')) : reasignarA;
+      if (alumnosCnt) msg += ` · ${alumnosCnt} alumno${alumnosCnt > 1 ? 's' : ''} → ${nomDest}`;
+      if (asignsCnt) msg += ` · ${asignsCnt} asignación${asignsCnt > 1 ? 'es' : ''} reasignadas`;
+    } else {
+      if (alumnosCnt) msg += ` · ${alumnosCnt} alumno${alumnosCnt > 1 ? 's' : ''} sin grupo`;
+      if (asignsCnt) msg += ` · ${asignsCnt} asignación${asignsCnt > 1 ? 'es' : ''} removidas`;
+    }
+    ADM.toast(msg, 'ok');
+
+    // Mostrar banner si quedan asignaciones huérfanas
+    ADM._mostrarBannerHuerfanas();
+
+  } catch(e) { ADM.toast('❌ ' + e.message, 'err'); console.error('[ADM._ejecutarEliminarGrupo]', e); }
+};
+
+ADM._mostrarBannerHuerfanas = function() {
+  const grupoIds = new Set((ADM.grupos || []).map(g => g.id));
+  const huerfanas = Object.values(ADM.asignacionesPorDocente || window._admAsignaciones || {})
+    .flat().filter(a => a.grupo_id && !grupoIds.has(a.grupo_id));
+  if (!huerfanas.length) return;
+
+  // Inyectar banner dinámicamente antes de la lista de docentes
+  const lista = document.getElementById('adm-docentes-list');
+  if (!lista) return;
+  const bannerId = 'adm-banner-huerfanas';
+  let banner = document.getElementById(bannerId);
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = bannerId;
+    lista.parentNode.insertBefore(banner, lista);
+  }
+  banner.innerHTML = `
+    <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:14px 16px;margin-bottom:14px;display:flex;align-items:flex-start;gap:10px;">
+      <span style="font-size:20px;flex-shrink:0;line-height:1.2;">⚠️</span>
+      <div style="flex:1;">
+        <div style="font-size:13px;font-weight:800;color:#9a3412;margin-bottom:2px;">Asignaciones de grupos eliminados</div>
+        <div style="font-size:12px;color:#92400e;">${huerfanas.length} asignación${huerfanas.length > 1 ? 'es' : ''} apuntan a grupos que ya no existen. Revisa y actualiza las asignaciones de los docentes afectados.</div>
+      </div>
+      <button onclick="document.getElementById('${bannerId}').remove()" style="background:none;border:none;cursor:pointer;color:#9a3412;font-size:18px;flex-shrink:0;line-height:1;" aria-label="Cerrar">✕</button>
+    </div>`;
 };
 
 // ═══════════════════════════════════════════════════════
 // DOCENTES Y STAFF
 // ═══════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════
+// PERSONAL Y MATERIAS — página unificada
+// ═══════════════════════════════════════════════════════════════════════
+
+// ── Tab switcher (global para onclick en HTML) ──────────────────────────
+window.admPMTab = function(tab) {
+  const tabs = ['personal', 'catalogo', 'asignaciones'];
+  tabs.forEach(t => {
+    const btn = document.getElementById('adm-pm-tab-' + t);
+    const panel = document.getElementById('adm-pm-panel-' + t);
+    if (!btn || !panel) return;
+    const active = t === tab;
+    btn.style.fontWeight = active ? '700' : '600';
+    btn.style.color = active ? '#0d5c2f' : '#64748b';
+    btn.style.borderBottom = active ? '2px solid #0d5c2f' : '2px solid transparent';
+    btn.style.marginBottom = active ? '-2px' : '0';
+    panel.style.display = active ? '' : 'none';
+  });
+};
+
+// ── KPI Cards ────────────────────────────────────────────────────────────
+ADM.renderPersonalKPIs = function() {
+  const el = document.getElementById('adm-personal-kpis');
+  if (!el) return;
+
+  const docentes = ADM.docentes || [];
+  const grupos = ADM.grupos || [];
+  const asigns = ADM.asignacionesPorDocente || window._admAsignaciones || {};
+
+  // Docentes con al menos 1 asignación a algún grupo
+  const docentesConAsign = docentes.filter(d => (asigns[d.id] || []).length > 0).length;
+  const docentesSinAsign = docentes.length - docentesConAsign;
+
+  // Materias pendientes: suma de faltantes en todos los grupos
+  let totalFaltantes = 0;
+  grupos.forEach(g => {
+    const cob = ADM._coberturaGrupo(g);
+    totalFaltantes += cob.faltantes.length;
+  });
+
+  // Cobertura global
+  let totalEsp = 0, totalCub = 0;
+  grupos.forEach(g => {
+    const cob = ADM._coberturaGrupo(g);
+    totalEsp += cob.esperadas.length;
+    totalCub += cob.cubiertas.length;
+  });
+  const pctGlobal = totalEsp ? Math.round((totalCub / totalEsp) * 100) : 0;
+
+  const cards = [
+    { label: 'Profesores y personal', value: String(docentes.length), sub: docentes.length === 1 ? '1 frente a grupo' : `${docentes.length} registrados`, color: '#c2410c', bg: '#fff7ed', border: '#fed7aa' },
+    { label: 'Docentes por completar', value: String(docentesSinAsign), sub: docentesSinAsign === 0 ? 'todos ya tienen asignación' : `${docentesSinAsign} sin materia asignada`, color: docentesSinAsign === 0 ? '#16a34a' : '#d97706', bg: docentesSinAsign === 0 ? '#f0fdf4' : '#fffbeb', border: docentesSinAsign === 0 ? '#86efac' : '#fde68a' },
+    { label: 'Materias pendientes', value: String(totalFaltantes), sub: totalFaltantes === 0 ? 'sin faltantes detectados' : `${totalFaltantes} sin docente asignado`, color: totalFaltantes === 0 ? '#16a34a' : '#b45309', bg: totalFaltantes === 0 ? '#f0fdf4' : '#fffbeb', border: totalFaltantes === 0 ? '#86efac' : '#fde68a' },
+    { label: 'Cobertura actual', value: pctGlobal + '%', sub: `${totalCub}/${totalEsp} materias cubiertas`, color: pctGlobal >= 100 ? '#16a34a' : pctGlobal >= 60 ? '#1d4ed8' : '#dc2626', bg: pctGlobal >= 100 ? '#f0fdf4' : pctGlobal >= 60 ? '#eff6ff' : '#fff1f2', border: pctGlobal >= 100 ? '#86efac' : pctGlobal >= 60 ? '#bfdbfe' : '#fecaca' },
+  ];
+
+  el.innerHTML = cards.map(c => `
+    <div style="background:${c.bg};border:1.5px solid ${c.border};border-radius:16px;padding:18px 20px;">
+      <div style="font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.6px;">${c.label}</div>
+      <div style="font-size:34px;font-weight:900;color:${c.color};line-height:1;margin:10px 0 6px;">${c.value}</div>
+      <div style="font-size:12px;color:#64748b;">${c.sub}</div>
+    </div>`).join('');
+};
+
+// ── Mapa de cobertura (tab Asignaciones) ─────────────────────────────────
+ADM.renderMapaCobertura = function() {
+  const el = document.getElementById('adm-mapa-cobertura');
+  if (!el) return;
+
+  const grupos = ADM.grupos || [];
+  const docentes = ADM.docentes || [];
+  if (!grupos.length) {
+    el.innerHTML = `<div style="padding:48px 20px;text-align:center;color:#94a3b8;">
+      <div style="font-size:40px;margin-bottom:12px;">🗂</div>
+      <div style="font-size:15px;font-weight:700;color:#0f172a;margin-bottom:6px;">Sin grupos registrados</div>
+      <div style="font-size:13px;">Crea grupos primero para ver el mapa de cobertura.</div>
+    </div>`;
+    return;
+  }
+
+  const normM = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+  const asigns = ADM.asignacionesPorDocente || window._admAsignaciones || {};
+
+  // Calcular cobertura por grupo
+  const detalles = grupos.map(g => {
+    const cob = ADM._coberturaGrupo(g);
+    const pct = cob.esperadas.length ? Math.round((cob.cubiertas.length / cob.esperadas.length) * 100) : 0;
+    return { g, cob, pct };
+  });
+
+  // Materias únicas esperadas en todos los grupos
+  const todasMaterias = [...new Set(detalles.flatMap(d => d.cob.esperadas))].sort();
+
+  // KPI resumen en la parte superior del tab
+  let totalEsp = 0, totalCub = 0, totalFalt = 0;
+  detalles.forEach(({ cob }) => { totalEsp += cob.esperadas.length; totalCub += cob.cubiertas.length; totalFalt += cob.faltantes.length; });
+  const pctG = totalEsp ? Math.round((totalCub / totalEsp) * 100) : 0;
+  const colorPctG = pctG >= 100 ? '#16a34a' : pctG >= 60 ? '#d97706' : '#dc2626';
+
+  // ── Heatmap: materias × grupos ──────────────────────────────────────
+  const thGrupos = grupos.map(g =>
+    `<th style="padding:6px 10px;font-size:11px;font-weight:700;color:#475569;border-bottom:1.5px solid #e2e8f0;text-align:center;min-width:58px;">${g.nombre || (g.grado + '°' + (g.seccion || ''))}</th>`
+  ).join('');
+
+  const filas = todasMaterias.map(materia => {
+    const celdas = grupos.map(g => {
+      const cob = ADM._coberturaGrupo(g);
+      const cubierta = cob.cubiertas.some(c => normM(c) === normM(materia));
+      const esperada = cob.esperadas.some(e => normM(e) === normM(materia));
+      if (!esperada) return `<td style="padding:6px 8px;text-align:center;background:#f8fafc;color:#cbd5e1;font-size:12px;">–</td>`;
+      if (cubierta) return `<td style="padding:6px 8px;text-align:center;background:#f0fdf4;color:#16a34a;font-size:15px;" title="Cubierta">✓</td>`;
+      return `<td style="padding:6px 8px;text-align:center;background:#fff7ed;cursor:pointer;font-size:15px;" title="Sin docente — clic para asignar"
+        onclick="ADM.navTo&&ADM.navTo('personal');admPMTab('personal')">⚠️</td>`;
+    }).join('');
+    return `<tr>
+      <td style="padding:7px 12px;font-size:12px;font-weight:700;color:#0f172a;border-right:1.5px solid #e2e8f0;white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis;">${materia}</td>
+      ${celdas}
+    </tr>`;
+  }).join('');
+
+  // ── Barras de progreso por grupo ──────────────────────────────────────
+  const barrasGrupos = detalles.map(({ g, cob, pct }) => {
+    const color = pct >= 100 ? '#16a34a' : pct >= 60 ? '#d97706' : '#dc2626';
+    const nom = g.nombre || (g.grado + '° ' + (g.seccion || ''));
+    return `
+      <div style="display:grid;grid-template-columns:80px 1fr 50px;gap:10px;align-items:center;margin-bottom:10px;">
+        <div style="font-size:12px;font-weight:800;color:#0f172a;">${nom}</div>
+        <div style="height:10px;background:#e5e7eb;border-radius:999px;overflow:hidden;">
+          <div style="width:${pct}%;height:100%;background:${color};border-radius:999px;transition:width .5s;"></div>
+        </div>
+        <div style="font-size:12px;font-weight:800;color:${color};text-align:right;">${pct}%</div>
+      </div>
+      ${cob.faltantes.length ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:14px;padding-left:90px;">
+        ${cob.faltantes.map(m => `<span style="background:#fff7ed;border:1px solid #fed7aa;border-radius:20px;padding:2px 9px;font-size:10px;color:#9a3412;font-weight:700;">⚠️ ${m}</span>`).join('')}
+      </div>` : `<div style="font-size:11px;color:#16a34a;padding-left:90px;margin-bottom:14px;font-weight:700;">✅ Cobertura completa</div>`}`;
+  }).join('');
+
+  // ── Docentes sin asignación ──────────────────────────────────────────
+  const docentesSin = docentes.filter(d => !(asigns[d.id] || []).length);
+  const docentesSinHtml = docentesSin.length
+    ? docentesSin.map(d => {
+        const nom = ((d.nombre || '') + ' ' + (d.apellido || d.apellido_p || '')).trim();
+        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;margin-bottom:8px;">
+          <div>
+            <div style="font-size:13px;font-weight:700;color:#0f172a;">${nom}</div>
+            <div style="font-size:11px;color:#9a3412;">Sin materias asignadas</div>
+          </div>
+          <button onclick="admPMTab('personal')" style="padding:6px 14px;background:#0d5c2f;color:white;border:none;border-radius:8px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;">Asignar</button>
+        </div>`;
+      }).join('')
+    : `<div style="font-size:13px;color:#16a34a;font-weight:700;padding:12px 0;">✅ Todos los docentes tienen al menos una asignación</div>`;
+
+  // ── Canvas Chart.js ─────────────────────────────────────────────────
+  const chartId = 'adm-cobertura-chart-' + Date.now();
+
+  el.innerHTML = `
+    <!-- Resumen global -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:20px;">
+      <div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:14px;padding:16px;text-align:center;">
+        <div style="font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">Cobertura global</div>
+        <div style="font-size:36px;font-weight:900;color:${colorPctG};line-height:1;margin:8px 0 4px;">${pctG}%</div>
+        <div style="font-size:12px;color:#64748b;">${totalCub}/${totalEsp} materias</div>
+      </div>
+      <div style="background:#fff7ed;border:1.5px solid #fed7aa;border-radius:14px;padding:16px;text-align:center;">
+        <div style="font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">Materias faltantes</div>
+        <div style="font-size:36px;font-weight:900;color:#c2410c;line-height:1;margin:8px 0 4px;">${totalFalt}</div>
+        <div style="font-size:12px;color:#64748b;">pendientes de asignar</div>
+      </div>
+      <div style="background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:14px;padding:16px;text-align:center;">
+        <div style="font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">Grupos completos</div>
+        <div style="font-size:36px;font-weight:900;color:#1d4ed8;line-height:1;margin:8px 0 4px;">${detalles.filter(d => d.pct >= 100).length}</div>
+        <div style="font-size:12px;color:#64748b;">de ${grupos.length} grupos</div>
+      </div>
+      <div style="background:#f5f3ff;border:1.5px solid #ddd6fe;border-radius:14px;padding:16px;text-align:center;">
+        <div style="font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">Docentes activos</div>
+        <div style="font-size:36px;font-weight:900;color:#7c3aed;line-height:1;margin:8px 0 4px;">${docentes.length}</div>
+        <div style="font-size:12px;color:#64748b;">${docentesSin.length} sin asignar</div>
+      </div>
+    </div>
+
+    <!-- Chart + barras por grupo -->
+    <div style="display:grid;grid-template-columns:200px 1fr;gap:20px;margin-bottom:24px;align-items:start;">
+      <div style="background:white;border:1.5px solid #e2e8f0;border-radius:14px;padding:14px;text-align:center;">
+        <div style="font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Materias por estado</div>
+        <canvas id="${chartId}" width="170" height="170"></canvas>
+        <div style="font-size:11px;color:#94a3b8;margin-top:8px;">
+          <span style="color:#16a34a;">●</span> ${totalCub} cubiertas&nbsp;&nbsp;
+          <span style="color:#dc2626;">●</span> ${totalFalt} faltantes
+        </div>
+      </div>
+      <div style="background:white;border:1.5px solid #e2e8f0;border-radius:14px;padding:16px;">
+        <div style="font-size:12px;font-weight:800;color:#374151;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">Cobertura por grupo</div>
+        ${barrasGrupos}
+      </div>
+    </div>
+
+    <!-- Heatmap materias × grupos -->
+    <div style="background:white;border:1.5px solid #e2e8f0;border-radius:14px;overflow:hidden;margin-bottom:24px;">
+      <div style="padding:14px 16px;background:#f8fafc;border-bottom:1.5px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;">
+        <div style="font-size:12px;font-weight:800;color:#374151;text-transform:uppercase;letter-spacing:.5px;">Mapa de cobertura — Materias × Grupos</div>
+        <div style="display:flex;gap:12px;font-size:11px;">
+          <span><span style="color:#16a34a;font-weight:800;">✓</span> Cubierta</span>
+          <span><span style="color:#f59e0b;font-weight:800;">⚠️</span> Faltante</span>
+          <span><span style="color:#cbd5e1;font-weight:800;">–</span> No aplica</span>
+        </div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;">
+          <thead>
+            <tr>
+              <th style="padding:8px 12px;font-size:11px;font-weight:700;color:#475569;border-bottom:1.5px solid #e2e8f0;text-align:left;min-width:150px;">Materia</th>
+              ${thGrupos}
+            </tr>
+          </thead>
+          <tbody>${filas}</tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Docentes sin asignación -->
+    <div style="background:white;border:1.5px solid #e2e8f0;border-radius:14px;padding:16px;">
+      <div style="font-size:12px;font-weight:800;color:#374151;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">Docentes por completar</div>
+      ${docentesSinHtml}
+    </div>`;
+
+  // Inicializar Chart.js donut
+  requestAnimationFrame(() => {
+    const canvas = document.getElementById(chartId);
+    if (!canvas || !window.Chart) return;
+    try {
+      new window.Chart(canvas.getContext('2d'), {
+        type: 'doughnut',
+        data: {
+          labels: ['Cubiertas', 'Faltantes'],
+          datasets: [{
+            data: [totalCub, totalFalt],
+            backgroundColor: ['#16a34a', '#dc2626'],
+            borderWidth: 0,
+          }],
+        },
+        options: {
+          cutout: '70%',
+          plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.raw}` } } },
+          animation: { duration: 600 },
+        },
+      });
+    } catch(e) { console.warn('[ADM] Chart.js error:', e.message); }
+  });
+};
 
 ADM.renderDocentes = function() {
   const el = document.getElementById('adm-docentes-list');
@@ -2088,6 +2452,103 @@ ADM.guardarPersonal = async function() {
   } catch(e) { ADM.toast('❌ ' + e.message, 'err'); }
 };
 
+// ── Panel de cobertura escolar global (para modal de asignaciones) ─────────
+ADM._htmlPanelCoberturaEscolar = function(docenteId) {
+  const grupos = ADM.grupos || [];
+  if (!grupos.length) return '';
+
+  // Por cada grupo: calcular qué cubre este docente y qué falta en total
+  const asignStore = ADM.asignacionesPorDocente || window._admAsignaciones || {};
+  const normM = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+
+  const filas = grupos.map(g => {
+    const cobGlobal = ADM._coberturaGrupo(g);
+    const misAsigns = (asignStore[docenteId] || []).filter(a => a.grupo_id === g.id);
+    const misMateriasNorm = new Set(misAsigns.map(a => normM(a.materia)));
+    const pct = cobGlobal.esperadas.length
+      ? Math.round((cobGlobal.cubiertas.length / cobGlobal.esperadas.length) * 100)
+      : 0;
+    const colorBar = pct >= 100 ? '#16a34a' : pct >= 60 ? '#d97706' : '#dc2626';
+    const nombreGrupo = g.nombre || (g.grado + '° ' + (g.seccion || ''));
+
+    // Chips de materias faltantes con botón de asignación rápida
+    const faltantesChips = cobGlobal.faltantes.map(m => {
+      const yoLaTengo = misMateriasNorm.has(normM(m));
+      return yoLaTengo
+        ? `<span style="display:inline-flex;align-items:center;gap:3px;background:#dcfce7;border:1px solid #bbf7d0;border-radius:20px;padding:2px 9px;font-size:10px;color:#166534;font-weight:700;">✓ ${m}</span>`
+        : `<button onclick="ADM._asignarRapido('${docenteId}','${g.id}','${m.replace(/'/g, "\\'")}')"
+              style="display:inline-flex;align-items:center;gap:3px;background:#fff7ed;border:1px solid #fed7aa;border-radius:20px;padding:2px 9px;font-size:10px;color:#9a3412;font-weight:700;cursor:pointer;transition:.15s;"
+              title="Asignar esta materia a este docente"
+              onmouseover="this.style.background='#fed7aa'" onmouseout="this.style.background='#fff7ed'">+ ${m}</button>`;
+    }).join('');
+
+    return `
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;margin-bottom:8px;">
+        <div style="display:grid;grid-template-columns:80px 1fr 44px;gap:8px;align-items:center;margin-bottom:6px;">
+          <div style="font-size:12px;font-weight:800;color:#0f172a;">${nombreGrupo}</div>
+          <div style="height:8px;background:#e5e7eb;border-radius:999px;overflow:hidden;">
+            <div style="width:${pct}%;height:100%;background:${colorBar};border-radius:999px;transition:width .4s;"></div>
+          </div>
+          <div style="font-size:11px;font-weight:800;color:${colorBar};text-align:right;">${pct}%</div>
+        </div>
+        ${cobGlobal.faltantes.length
+          ? `<div style="display:flex;flex-wrap:wrap;gap:4px;">${faltantesChips}</div>`
+          : `<div style="font-size:11px;color:#16a34a;font-weight:700;">✅ Cobertura completa</div>`}
+      </div>`;
+  }).join('');
+
+  const totalEsp = grupos.reduce((acc, g) => acc + ADM._coberturaGrupo(g).esperadas.length, 0);
+  const totalCub = grupos.reduce((acc, g) => acc + ADM._coberturaGrupo(g).cubiertas.length, 0);
+  const pctGlobal = totalEsp ? Math.round((totalCub / totalEsp) * 100) : 0;
+  const colorGlobal = pctGlobal >= 100 ? '#16a34a' : pctGlobal >= 60 ? '#d97706' : '#dc2626';
+
+  return `
+    <div style="border:1.5px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:16px;">
+      <div style="background:#f1f5f9;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;"
+           onclick="const b=document.getElementById('adm-cobertura-body');b.style.display=b.style.display==='none'?'block':'none'">
+        <div style="font-size:12px;font-weight:800;color:#374151;text-transform:uppercase;letter-spacing:.5px;">
+          📊 Cobertura escolar por grupos
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:13px;font-weight:900;color:${colorGlobal};">${pctGlobal}% global</span>
+          <span style="font-size:11px;color:#94a3b8;">${totalCub}/${totalEsp} materias</span>
+          <span style="font-size:12px;color:#94a3b8;">▼</span>
+        </div>
+      </div>
+      <div id="adm-cobertura-body" style="padding:12px;display:block;">
+        <div style="font-size:11px;color:#64748b;margin-bottom:10px;">Los botones naranjas son materias sin docente — haz clic para asignarlas a este docente.</div>
+        ${filas}
+      </div>
+    </div>`;
+};
+
+ADM._asignarRapido = function(docenteId, grupoId, materia) {
+  const selMat = document.getElementById('adm-mat-sel');
+  const selGrupo = document.getElementById('adm-mat-grupo-sel');
+  if (selMat && selGrupo) {
+    // Buscar option que contenga la materia
+    const opts = Array.from(selMat.options);
+    const match = opts.find(o => {
+      const partes = o.value.split('::');
+      const val = partes.length > 1 ? partes[1] : o.value;
+      return val.trim().toLowerCase() === materia.trim().toLowerCase();
+    });
+    if (match) {
+      selMat.value = match.value;
+      selMat.dispatchEvent(new Event('change'));
+    } else {
+      // Usar "otra materia"
+      selMat.value = '__nueva__';
+      selMat.dispatchEvent(new Event('change'));
+      const inp = document.getElementById('adm-mat-nueva');
+      if (inp) inp.value = materia;
+    }
+    selGrupo.value = grupoId;
+    // Scroll al form
+    selMat.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+};
+
 ADM.abrirAsignarMaterias = function(docenteId, docenteNombre) {
   const asignadas = ADM._getAsignacionesDocente(docenteId);
   const esSecundaria = ADM.escuelaNivel === 'secundaria';
@@ -2135,9 +2596,12 @@ ADM.abrirAsignarMaterias = function(docenteId, docenteNombre) {
         </div>`).join('')
     : '<div style="color:#94a3b8;font-size:13px;padding:8px 0;font-style:italic;">Sin materias asignadas — agrega la primera abajo</div>';
 
+  const coberturaHtml = ADM._htmlPanelCoberturaEscolar(docenteId);
+
   ADM.abrirModal('adm-modal-materias',
     `📚 Asignaciones de ${docenteNombre}`,
     `<div id="adm-mat-asignadas" style="margin-bottom:16px;">${asignadasHtml}</div>
+    ${coberturaHtml}
     <div style="border-top:1px solid #e5e7eb;padding-top:14px;">
       <div style="font-size:12px;font-weight:700;color:#64748b;margin-bottom:10px;
         text-transform:uppercase;letter-spacing:.5px;">Agregar asignación</div>
@@ -2318,12 +2782,15 @@ ADM.renderAlumnos = function(filtro = '') {
     ${lista.map((a, i) => {
       const nombre = `${a.nombre||''} ${a.apellido_p||a.apellido||''} ${a.apellido_m||''}`.trim().replace(/\s+/g,' ');
       // grupo_id can come from alumnos_grupos (DB) or direct grupo_id (local)
-      const grupo = a.alumnos_grupos?.[0]?.grupos?.nombre
-        || (a.grupo_id ? (ADM.grupos.find(g=>g.id===a.grupo_id)?.nombre||'Sin nombre') : '—');
+      const grupoNom = a.alumnos_grupos?.[0]?.grupos?.nombre
+        || (a.grupo_id ? (ADM.grupos.find(g=>g.id===a.grupo_id)?.nombre||null) : null);
+      const grupoBadge = grupoNom
+        ? `<span class="adm-badge adm-badge-blue">${grupoNom}</span>`
+        : `<span class="adm-badge" style="background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;cursor:pointer;" onclick="ADM.asignarGrupoAlumno('${a.id}','${nombre}')" title="Sin grupo — click para asignar">Sin grupo</span>`;
       return `<tr>
         <td style="color:#94a3b8;font-size:12px;">${i+1}</td>
         <td style="font-weight:600;">${nombre}</td>
-        <td><span class="adm-badge adm-badge-blue">${grupo}</span></td>
+        <td>${grupoBadge}</td>
         <td style="font-family:monospace;font-size:11px;color:#64748b;">${a.curp||'—'}</td>
         <td>
           ${a.codigo_vinculacion

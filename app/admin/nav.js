@@ -3,10 +3,11 @@ window.SiembraAdminNav = (function() {
     dashboard: 'Dashboard',
     grupos: 'Grupos y salones',
     cobertura: 'Cobertura academica',
-    docentes: 'Personal escolar',
+    personal: 'Personal y materias',
+    docentes: 'Personal y materias',
     alumnos: 'Alumnos',
-    materias: 'Materias',
-    asignaciones: 'Asignaciones',
+    materias: 'Personal y materias',
+    asignaciones: 'Personal y materias',
     importar: 'Importar CSV',
     vinculos: 'Codigos QR',
     solicitudes: 'Vinculaciones Padre-Alumno',
@@ -49,11 +50,26 @@ window.SiembraAdminNav = (function() {
   }
 
   function runPageHooks(ADM, page) {
-    if (page === 'asignaciones') {
+    if (page === 'personal') {
+      ADM.renderPersonalKPIs?.();
+      ADM.renderDocentes?.();
       ADM.renderMaterias?.();
       ADM.renderAsignaciones?.();
-      if (typeof window.admAsigTab === 'function') {
-        window.admAsigTab('catalogo');
+      ADM.renderMapaCobertura?.();
+      // Asegurar que el tab Personal esté activo al entrar
+      if (typeof window.admPMTab === 'function') {
+        window.admPMTab('personal');
+      }
+    }
+
+    if (page === 'asignaciones') {
+      // compat: redirigir al tab Asignaciones dentro de personal
+      ADM.renderPersonalKPIs?.();
+      ADM.renderMaterias?.();
+      ADM.renderAsignaciones?.();
+      ADM.renderMapaCobertura?.();
+      if (typeof window.admPMTab === 'function') {
+        window.admPMTab('asignaciones');
       }
     }
 
@@ -108,10 +124,22 @@ window.SiembraAdminNav = (function() {
   }
 
   function navTo(ADM, page) {
-    activatePage(page);
-    ADM.paginaActual = page;
-    updateTopbar(page);
-    runPageHooks(ADM, page);
+    // Redirigir páginas fusionadas a la nueva página unificada
+    const pageMap = { docentes: 'personal', materias: 'personal' };
+    const resolvedPage = pageMap[page] || page;
+    activatePage(resolvedPage);
+    // Activar también el botón de personal si se navega desde docentes/asignaciones
+    if (pageMap[page]) {
+      const btnPersonal = document.getElementById('adm-nav-personal');
+      if (btnPersonal) btnPersonal.classList.add('active');
+    }
+    ADM.paginaActual = resolvedPage;
+    updateTopbar(resolvedPage);
+    runPageHooks(ADM, resolvedPage);
+    // Si venía de asignaciones, activar ese tab dentro de personal
+    if (page === 'asignaciones' && typeof window.admPMTab === 'function') {
+      window.admPMTab('asignaciones');
+    }
     syncUserHeader(ADM);
   }
 
