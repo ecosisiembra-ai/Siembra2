@@ -158,26 +158,45 @@ async function subdirRenderDocentes() {
   }
   grid.innerHTML = '<div style="grid-column:1/-1;padding:30px;text-align:center;color:#94a3b8;">Cargando docentes…</div>';
   try {
+    // Query simple sin joins anidados para evitar cascada de RLS
     const { data, error } = await window.sb.from('usuarios')
-      .select('id, nombre, apellido_p, rol, activo, docente_grupos(grupos(nombre,grado,grupo))')
+      .select('id, nombre, apellido_p, rol, activo')
       .eq('escuela_cct', cct)
       .in('rol', ['docente','tutor','ts','prefecto','coordinador'])
-      .eq('activo', true).order('nombre');
+      .eq('activo', true)
+      .order('nombre');
     if (error) throw error;
     const lista = data || [];
     if (!lista.length) {
       grid.innerHTML = '<div style="grid-column:1/-1;padding:40px;text-align:center;color:#94a3b8;"><div style="font-size:36px;margin-bottom:10px;">👩‍🏫</div><div style="font-size:14px;font-weight:700;color:#0f172a;">Aún no hay docentes registrados</div><div style="font-size:13px;margin-top:6px;">Registra al personal para construir cobertura, horarios y seguimiento académico.</div></div>';
       return;
     }
+
+    // Query separada para grupos (evita join anidado lento)
+    const ids = lista.map(d => d.id);
+    const { data: dgData } = await window.sb.from('docente_grupos')
+      .select('docente_id, grupos(nombre,grado,seccion)')
+      .in('docente_id', ids);
+    const dgMap = {};
+    (dgData || []).forEach(dg => {
+      if (!dgMap[dg.docente_id]) dgMap[dg.docente_id] = [];
+      const g = dg.grupos;
+      if (g) dgMap[dg.docente_id].push(g.nombre || `${g.grado}°${g.seccion||''}`);
+    });
+
+    const rolLabels = { docente:'Docente', tutor:'Tutor', ts:'Trab. Social', prefecto:'Prefecto', coordinador:'Coordinador' };
     grid.innerHTML = lista.map((d,i) => {
       const nom = `${d.nombre||''} ${d.apellido_p||''}`.trim();
       const ini = nom.split(' ').map(p=>p[0]||'').join('').slice(0,2).toUpperCase();
-      const gruposArr = (d.docente_grupos||[]).map(dg=>dg.grupos?.nombre||`${dg.grupos?.grado}°${dg.grupos?.grupo}`).filter(Boolean);
+      const gruposArr = dgMap[d.id] || [];
       const gruposStr = gruposArr.length ? gruposArr.slice(0,3).join(', ') : '—';
       return `<div style="background:white;border-radius:12px;border:1px solid #e2e8f0;padding:16px 18px;">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+        <div style="display:flex;align-items:center;gap:10px;">
           <div style="width:40px;height:40px;border-radius:50%;background:${colors[i%colors.length]};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:white;flex-shrink:0;">${ini}</div>
-          <div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${nom}</div><div style="font-size:11px;color:#64748b;">${d.rol} · Grupos: ${gruposStr}</div></div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${nom}</div>
+            <div style="font-size:11px;color:#64748b;">${rolLabels[d.rol]||d.rol} · ${gruposStr}</div>
+          </div>
         </div>
       </div>`;
     }).join('');
