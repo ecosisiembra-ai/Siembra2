@@ -5986,12 +5986,17 @@ async function ctGuardarTarea() {
     try {
       const grupoId = window._grupoActivo || null;
       const reqEvidencia = document.getElementById('ct-req-evidencia')?.checked || false;
+      const tipoEvalSave = CT_EVAL_TIPO || 'carita';
+      const rubricaSave  = CT_RUBRICA_SEL || null;
       const { data, error } = await sb.from('tareas_docente').insert({
         docente_id: currentPerfil.id, grupo_id: grupoId,
         titulo, materia, tipo, instrucciones,
         criterios: criteriosChk, fecha_entrega: fecha,
         ciclo: window.CICLO_ACTIVO, created_at: new Date().toISOString(),
         requiere_evidencia: reqEvidencia,
+        tipo_eval: tipoEvalSave,
+        rubrica: rubricaSave,
+        subtitulo: document.getElementById('ct-new-subtitulo')?.value.trim() || '',
       }).select('id').single();
       if (!error && data) nueva.id = data.id;
     } catch(e) { console.warn('[ctGuardarTarea]', e.message); }

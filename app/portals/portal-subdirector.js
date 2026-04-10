@@ -101,7 +101,7 @@ function subdirNav(page) {
   const t = document.getElementById('subdir-title');
   if (t) t.textContent = titles[page] || page;
   if (page === 'docentes')  subdirRenderDocentes();
-  if (page === 'prefectos') subdirRenderPrefectos();
+  if (page === 'prefectos') subdirCargarYRenderPrefectos();
   if (page === 'boleta')    subdirBoletaInit();
   if (page === 'pemc')      { if(typeof nemPemcRender==='function') nemPemcRender(); if(typeof nemPemcCargar==='function') nemPemcCargar(); }
   if (page === 'horarios-pub') subdirCargarHorariosPublicados();
@@ -206,21 +206,30 @@ async function subdirRenderDocentes() {
 }
 
 async function subdirCargarPrefectos() {
-  const cct = _getCct();
+  const cct = window.currentPerfil?.escuela_cct;
   if (!window.sb || !cct) return;
   const { data } = await window.sb.from('usuarios')
     .select('id, nombre, apellido_p, apellido_m, email, telefono')
     .eq('escuela_cct', cct).eq('rol', 'prefecto').eq('activo', true);
-  if (data && data.length) {
+  if (data) {
     window.SUBDIR_PREFECTOS = data.map(u => ({
       id: u.id,
       nombre: `${u.nombre||''} ${u.apellido_p||''} ${u.apellido_m||''}`.trim(),
       email: u.email || '',
       telefono: u.telefono || '',
+      incidencias: 0,
     }));
   }
 }
 window.subdirCargarPrefectos = subdirCargarPrefectos;
+
+async function subdirCargarYRenderPrefectos() {
+  const grid = document.getElementById('subdir-prefectos-grid');
+  if (grid) grid.innerHTML = '<div style="grid-column:1/-1;padding:30px;text-align:center;color:#94a3b8;">Cargando prefectos…</div>';
+  await subdirCargarPrefectos();
+  subdirRenderPrefectos();
+}
+window.subdirCargarYRenderPrefectos = subdirCargarYRenderPrefectos;
 
 const SUBDIR_PREFECTOS = [
   { nombre:'Lic. Juan Medina',  turno:'Matutino',  grados:'1° y 2°', incidencias: 5 },
