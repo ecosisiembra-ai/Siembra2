@@ -11767,55 +11767,555 @@ window.dMarcarNotifLeida      = dMarcarNotifLeida;
 
 // ── SECRETARÍA: CONTROL ESCOLAR ──────────────────────────────
 window._ctrlData = [];
+// ═══════════════════════════════════════════════════════════════════════
+// CONTROL ESCOLAR — módulo completo
+// Fuente de datos: usuarios (rol=alumno) + alumnos_grupos + grupos
+// ═══════════════════════════════════════════════════════════════════════
+
+// ── Notas/etiquetas en memoria (persistidas en localStorage) ──────────
+function _ctrlGetNotas() {
+  try { return JSON.parse(localStorage.getItem('siembra_ctrl_notas') || '{}'); } catch(e) { return {}; }
+}
+function _ctrlSaveNotas(notas) {
+  try { localStorage.setItem('siembra_ctrl_notas', JSON.stringify(notas)); } catch(e) {}
+}
+function _ctrlGetNota(alumnoId) {
+  return _ctrlGetNotas()[alumnoId] || { etiqueta: 'normal', comentario: '' };
+}
+function _ctrlSetNota(alumnoId, patch) {
+  const notas = _ctrlGetNotas();
+  notas[alumnoId] = { ..._ctrlGetNota(alumnoId), ...patch };
+  _ctrlSaveNotas(notas);
+}
+
+// ── Tab switcher ────────────────────────────────────────────────────────
+function admCtrlTab(tab) {
+  ['grupos','lista','ciclo'].forEach(t => {
+    const btn   = document.getElementById('ctrl-tab-' + t);
+    const panel = document.getElementById('ctrl-panel-' + t);
+    const active = t === tab;
+    if (btn) {
+      btn.style.fontWeight = active ? '700' : '600';
+      btn.style.color = active ? '#0d5c2f' : '#64748b';
+      btn.style.borderBottom = active ? '2px solid #0d5c2f' : '2px solid transparent';
+      btn.style.marginBottom = active ? '-2px' : '0';
+    }
+    if (panel) panel.style.display = active ? '' : 'none';
+  });
+  if (tab === 'ciclo') admCtrlRenderCiclo();
+}
+window.admCtrlTab = admCtrlTab;
+
+// ── Carga principal ─────────────────────────────────────────────────────
 async function admCtrlEscolarCargar() {
   const sbRef = window.sb;
-  const cct = window.currentPerfil?.escuela_cct || window._admEscuelaCCT;
-  const tbody = document.getElementById('ctrl-tabla-body');
-  const tipo = document.getElementById('ctrl-filtro-tipo')?.value || '';
-  const grado = document.getElementById('ctrl-filtro-grado')?.value || '';
-  if (!sbRef || !tbody) return;
-  tbody.innerHTML = '<tr><td colspan="6" style="padding:24px;text-align:center;color:#94a3b8;">Cargando…</td></tr>';
+  const cct = window.currentPerfil?.escuela_cct || window.ADM?.escuelaCct;
+  const escuelaId = window.currentPerfil?.escuela_id || window.ADM?.escuelaId;
+  const listEl = document.getElementById('ctrl-grupos-list');
+  if (listEl) listEl.innerHTML = '<div style="padding:40px;text-align:center;color:#94a3b8;">Cargando…</div>';
+
   try {
-    let q = sbRef.from('alumnos').select('id,nombre,curp,grado,seccion,activo,created_at').eq('escuela_cct', cct).eq('activo', true).order('created_at', {ascending:false}).limit(200);
-    if (grado) q = q.eq('grado', grado);
-    const { data, error } = await q;
-    if (error) throw error;
-    window._ctrlData = data || [];
-    // Update stats
+    // Usar datos ya cargados en ADM si están disponibles
+    let grupos = window.ADM?.grupos || [];
+    let alumnos = window.ADM?.alumnos || [];
+
+    // Si no hay datos en ADM, cargar desde DB
+    if (!grupos.length && sbRef && (cct || escuelaId)) {
+      let q = sbRef.from('grupos').select('*').eq('activo', true);
+      if (cct) q = q.eq('escuela_cct', cct);
+      const { data: gData } = await q.order('grado');
+      grupos = gData || [];
+    }
+    if (!alumnos.length && sbRef && (cct || escuelaId)) {
+      let q = sbRef.from('usuarios')
+        .select('id,nombre,apellido,apellido_p,curp,activo,created_at,alumnos_grupos(grupo_id,ciclo,activo,grupos(id,nombre,grado,seccion))')
+        .eq('rol','alumno').eq('activo',true).order('nombre');
+      if (cct) q = q.eq('escuela_cct', cct);
+      else if (escuelaId) q = q.eq('escuela_id', escuelaId);
+      const { data: aData } = await q;
+      alumnos = aData || [];
+    }
+
+    // Cargar movimientos del ciclo actual (bajas, traslados)
+    const cicloActual = window.CICLO_ACTIVO || new Date().getFullYear() + '-' + (new Date().getFullYear()+1);
+    let movimientos = [];
+    if (sbRef && (cct || escuelaId)) {
+      let q = sbRef.from('control_escolar_movimientos')
+        .select('*,usuarios(nombre,apellido,apellido_p),grupos(nombre,grado,seccion)')
+        .eq('ciclo', cicloActual).order('created_at',{ascending:false}).limit(200);
+      if (cct) q = q.eq('escuela_cct', cct);
+      const { data: mvData } = await q;
+      movimientos = mvData || [];
+    }
+
+    window._ctrlGrupos    = grupos;
+    window._ctrlAlumnos   = alumnos;
+    window._ctrlMovimientos = movimientos;
+
+    // Calcular stats
+    const notas = _ctrlGetNotas();
+    let totalCriticos = 0, totalDestacados = 0;
+    alumnos.forEach(a => {
+      const n = notas[a.id];
+      if (n?.etiqueta === 'critico')   totalCriticos++;
+      if (n?.etiqueta === 'destacado') totalDestacados++;
+    });
+    const bajasCiclo = movimientos.filter(m => m.tipo === 'baja').length;
+
     const setEl = (id, v) => { const e = document.getElementById(id); if(e) e.textContent = v; };
-    setEl('ctrl-stat-inscritos', (data||[]).length);
-    setEl('ctrl-stat-altas', 0);
-    setEl('ctrl-stat-bajas', 0);
-    setEl('ctrl-stat-traslados', 0);
-    admCtrlEscolarFiltrar();
+    setEl('ctrl-stat-inscritos',  alumnos.length);
+    setEl('ctrl-stat-grupos',     grupos.length);
+    setEl('ctrl-stat-criticos',   totalCriticos);
+    setEl('ctrl-stat-destacados', totalDestacados);
+    setEl('ctrl-stat-bajas',      bajasCiclo);
+
+    admCtrlRenderGrupos();
+    admCtrlRenderMovimientos();
+
   } catch(e) {
-    tbody.innerHTML = `<tr><td colspan="6" style="padding:24px;text-align:center;color:#b91c1c;">Error: ${e.message}</td></tr>`;
+    if (listEl) listEl.innerHTML = `<div style="padding:40px;text-align:center;color:#b91c1c;font-weight:700;">Error: ${e.message}</div>`;
   }
 }
-function admCtrlEscolarFiltrar() {
-  const buscar = (document.getElementById('ctrl-buscar')?.value || '').toLowerCase();
+
+// ── Render: grupos colapsables con alumnos ──────────────────────────────
+function admCtrlRenderGrupos() {
+  const el = document.getElementById('ctrl-grupos-list');
+  if (!el) return;
+  const grupos   = window._ctrlGrupos   || [];
+  const alumnos  = window._ctrlAlumnos  || [];
+  const notas    = _ctrlGetNotas();
+  const buscar   = (document.getElementById('ctrl-buscar')?.value || '').toLowerCase();
+  const filtGrado = document.getElementById('ctrl-filtro-grado')?.value || '';
+  const filtEtiq  = document.getElementById('ctrl-filtro-etiqueta')?.value || '';
+
+  if (!grupos.length) {
+    el.innerHTML = '<div style="padding:40px;text-align:center;color:#94a3b8;">Sin grupos registrados. Crea grupos en la sección Grupos.</div>';
+    return;
+  }
+
+  // Agrupar alumnos por grupo
+  const alumnosPorGrupo = {};
+  alumnos.forEach(a => {
+    (a.alumnos_grupos || []).forEach(ag => {
+      const gid = ag.grupo_id;
+      if (!alumnosPorGrupo[gid]) alumnosPorGrupo[gid] = [];
+      alumnosPorGrupo[gid].push(a);
+    });
+  });
+
+  const gruposFiltrados = grupos.filter(g => {
+    if (filtGrado && String(g.grado) !== filtGrado) return false;
+    return true;
+  });
+
+  const ETIQ_CFG = {
+    critico:   { label:'⚠️ Crítico',   bg:'#fff7ed', border:'#fed7aa', color:'#9a3412' },
+    destacado: { label:'⭐ Destacado',  bg:'#fefce8', border:'#fde68a', color:'#854d0e' },
+    normal:    { label:'',             bg:'',         border:'',        color:'' },
+  };
+
+  el.innerHTML = gruposFiltrados.map((g, gi) => {
+    const gid = g.id;
+    const nomGrupo = g.nombre || (g.grado + '° ' + (g.seccion || ''));
+    const turno = g.turno ? ` · ${g.turno}` : '';
+    let alumnosGrupo = alumnosPorGrupo[gid] || [];
+
+    // Aplicar filtro de etiqueta y búsqueda
+    if (buscar || filtEtiq) {
+      alumnosGrupo = alumnosGrupo.filter(a => {
+        const nom = ((a.nombre||'') + ' ' + (a.apellido||a.apellido_p||'')).trim().toLowerCase();
+        if (buscar && !nom.includes(buscar) && !(a.curp||'').toLowerCase().includes(buscar)) return false;
+        if (filtEtiq) {
+          const etiq = notas[a.id]?.etiqueta || 'normal';
+          if (etiq !== filtEtiq) return false;
+        }
+        return true;
+      });
+    }
+
+    const total      = alumnosGrupo.length;
+    const criticos   = alumnosGrupo.filter(a => notas[a.id]?.etiqueta === 'critico').length;
+    const destacados = alumnosGrupo.filter(a => notas[a.id]?.etiqueta === 'destacado').length;
+
+    const estadoColor = criticos > 0 ? '#dc2626' : total === 0 ? '#94a3b8' : '#0d5c2f';
+    const estadoBg    = criticos > 0 ? '#fff7ed' : total === 0 ? '#f8fafc' : '#f0fdf4';
+
+    const alumnosHtml = total === 0
+      ? `<div style="padding:16px 24px;font-size:12px;color:#94a3b8;font-style:italic;">Sin alumnos en este grupo</div>`
+      : alumnosGrupo.map(a => {
+          const nombre = ((a.nombre||'') + ' ' + (a.apellido||a.apellido_p||'')).trim();
+          const nota   = notas[a.id] || { etiqueta: 'normal', comentario: '' };
+          const eqCfg  = ETIQ_CFG[nota.etiqueta] || ETIQ_CFG.normal;
+          const initials = nombre.split(' ').map(p=>p[0]||'').join('').toUpperCase().slice(0,2) || '?';
+          const avatarColors = ['#0d5c2f','#1e40af','#7c3aed','#c2410c'];
+          const aColor = avatarColors[nombre.charCodeAt(0) % avatarColors.length];
+
+          return `
+          <div style="display:flex;align-items:flex-start;gap:12px;padding:12px 20px;border-top:1px solid #f1f5f9;transition:.15s;"
+               onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+            <div style="width:34px;height:34px;border-radius:9px;background:${aColor};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:white;flex-shrink:0;">${initials}</div>
+            <div style="flex:1;min-width:0;">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <span style="font-size:13px;font-weight:700;color:#0f172a;">${nombre}</span>
+                ${nota.etiqueta !== 'normal' ? `<span style="background:${eqCfg.bg};border:1px solid ${eqCfg.border};color:${eqCfg.color};padding:1px 8px;border-radius:99px;font-size:10px;font-weight:700;">${eqCfg.label}</span>` : ''}
+              </div>
+              <div style="font-size:11px;color:#94a3b8;margin-top:2px;">${a.curp||'—'}</div>
+              ${nota.comentario ? `<div style="font-size:11px;color:#64748b;margin-top:4px;padding:4px 8px;background:#f8fafc;border-radius:6px;border-left:3px solid #e2e8f0;">"${nota.comentario}"</div>` : ''}
+            </div>
+            <div style="display:flex;gap:5px;flex-shrink:0;flex-wrap:wrap;">
+              <button onclick="admCtrlEditarNota('${a.id}','${nombre.replace(/'/g,"\\'")}')"
+                style="padding:4px 8px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;font-family:inherit;font-size:10px;font-weight:700;cursor:pointer;color:#475569;">✏️</button>
+              <button onclick="admCtrlDarBaja('${a.id}','${nombre.replace(/'/g,"\\'")}')"
+                style="padding:4px 8px;background:#fff1f2;border:1px solid #fecaca;border-radius:6px;font-family:inherit;font-size:10px;font-weight:700;cursor:pointer;color:#dc2626;">Baja</button>
+              <button onclick="admCtrlTraslado('${a.id}','${nombre.replace(/'/g,"\\'")}')"
+                style="padding:4px 8px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;font-family:inherit;font-size:10px;font-weight:700;cursor:pointer;color:#1e40af;">Traslado</button>
+            </div>
+          </div>`;
+        }).join('');
+
+    return `
+    <div style="border:1.5px solid #e2e8f0;border-radius:14px;overflow:hidden;margin-bottom:12px;">
+      <!-- Header grupo -->
+      <div onclick="admToggleCampo('ctrl-g-${gi}')"
+        style="background:${estadoBg};padding:14px 18px;display:flex;align-items:center;gap:12px;cursor:pointer;user-select:none;transition:.15s;"
+        onmouseover="this.style.filter='brightness(.97)'" onmouseout="this.style.filter=''">
+        <div style="width:38px;height:38px;border-radius:10px;background:${estadoColor};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;color:white;flex-shrink:0;">
+          ${g.seccion || g.grado + '°'}
+        </div>
+        <div style="flex:1;">
+          <div style="font-size:14px;font-weight:800;color:#0f172a;">${nomGrupo}${turno}</div>
+          <div style="display:flex;gap:10px;margin-top:3px;flex-wrap:wrap;">
+            <span style="font-size:11px;color:#64748b;">${total} alumno${total!==1?'s':''}</span>
+            ${criticos   ? `<span style="font-size:11px;color:#dc2626;font-weight:700;">⚠️ ${criticos} crítico${criticos>1?'s':''}</span>` : ''}
+            ${destacados ? `<span style="font-size:11px;color:#16a34a;font-weight:700;">⭐ ${destacados} destacado${destacados>1?'s':''}</span>` : ''}
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button onclick="event.stopPropagation();ADM.abrirAltaAlumnoGrupo&&ADM.abrirAltaAlumnoGrupo('${gid}')"
+            style="padding:5px 10px;background:#0d5c2f;color:white;border:none;border-radius:7px;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;">+ Alumno</button>
+          <span id="ctrl-g-${gi}-arrow" style="font-size:18px;color:#94a3b8;transition:.2s;">▸</span>
+        </div>
+      </div>
+      <div id="ctrl-g-${gi}" style="display:none;background:white;">${alumnosHtml}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── Editar nota/etiqueta de alumno ─────────────────────────────────────
+function admCtrlEditarNota(alumnoId, nombre) {
+  const nota = _ctrlGetNota(alumnoId);
+  if (!window.ADM?.abrirModal) {
+    alert('Modal no disponible');
+    return;
+  }
+  ADM.abrirModal('ctrl-modal-nota', `📝 Observación — ${nombre}`,
+    `<div style="margin-bottom:12px;">
+      <label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:6px;">Etiqueta del alumno</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:8px 14px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;font-weight:600;">
+          <input type="radio" name="ctrl-etiq" value="normal" ${nota.etiqueta==='normal'?'checked':''} style="accent-color:#0d5c2f;"> Sin etiqueta
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:8px 14px;border:1.5px solid #fed7aa;border-radius:8px;font-size:12px;font-weight:600;background:#fff7ed;">
+          <input type="radio" name="ctrl-etiq" value="critico" ${nota.etiqueta==='critico'?'checked':''}  style="accent-color:#dc2626;"> ⚠️ Crítico
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:8px 14px;border:1.5px solid #fde68a;border-radius:8px;font-size:12px;font-weight:600;background:#fefce8;">
+          <input type="radio" name="ctrl-etiq" value="destacado" ${nota.etiqueta==='destacado'?'checked':''} style="accent-color:#d97706;"> ⭐ Destacado
+        </label>
+      </div>
+    </div>
+    <div>
+      <label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:6px;">Comentario / observación del ciclo</label>
+      <textarea id="ctrl-nota-txt" rows="3" placeholder="Ej: Requiere apoyo en matemáticas, excelente asistencia…"
+        style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:13px;outline:none;resize:vertical;box-sizing:border-box;">${nota.comentario||''}</textarea>
+    </div>`,
+    `admCtrlGuardarNota('${alumnoId}')`,
+    'Guardar observación'
+  );
+}
+
+function admCtrlGuardarNota(alumnoId) {
+  const etiq = document.querySelector('input[name="ctrl-etiq"]:checked')?.value || 'normal';
+  const comentario = document.getElementById('ctrl-nota-txt')?.value?.trim() || '';
+  _ctrlSetNota(alumnoId, { etiqueta: etiq, comentario });
+  ADM.cerrarModal?.();
+  ADM.toast?.('✅ Observación guardada', 'ok');
+  admCtrlRenderGrupos();
+  // Actualizar stats
+  const notas = _ctrlGetNotas();
+  const alumnos = window._ctrlAlumnos || [];
+  let crit = 0, dest = 0;
+  alumnos.forEach(a => { if(notas[a.id]?.etiqueta==='critico') crit++; if(notas[a.id]?.etiqueta==='destacado') dest++; });
+  const s=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+  s('ctrl-stat-criticos',crit); s('ctrl-stat-destacados',dest);
+}
+window.admCtrlGuardarNota = admCtrlGuardarNota;
+
+// ── Dar de baja ─────────────────────────────────────────────────────────
+async function admCtrlDarBaja(alumnoId, nombre) {
+  if (!window.ADM?.abrirModal) return;
+  const ciclo = window.CICLO_ACTIVO || new Date().getFullYear() + '-' + (new Date().getFullYear()+1);
+  ADM.abrirModal('ctrl-modal-baja', `🚫 Dar de baja — ${nombre}`,
+    `<div style="background:#fff1f2;border:1px solid #fecaca;border-radius:10px;padding:14px;margin-bottom:14px;">
+      <div style="font-size:13px;color:#b91c1c;font-weight:700;margin-bottom:4px;">⚠️ Esta acción desvinculará al alumno de su grupo</div>
+      <div style="font-size:12px;color:#991b1b;">El registro del alumno se conserva como inactivo. El movimiento queda registrado en el historial del ciclo ${ciclo}.</div>
+    </div>
+    <div>
+      <label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:6px;">Motivo de baja</label>
+      <select id="ctrl-baja-motivo" style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:13px;outline:none;">
+        <option value="traslado_escuela">Traslado a otra escuela</option>
+        <option value="desercion">Deserción / abandono escolar</option>
+        <option value="graduacion">Graduación anticipada</option>
+        <option value="otro">Otro</option>
+      </select>
+    </div>`,
+    `admCtrlConfirmarBaja('${alumnoId}','${nombre.replace(/'/g,"\\'")}')`,
+    'Dar de baja'
+  );
+}
+
+async function admCtrlConfirmarBaja(alumnoId, nombre) {
+  const motivo = document.getElementById('ctrl-baja-motivo')?.value || 'otro';
+  ADM.cerrarModal?.();
+  const sbRef = window.sb;
+  const cct = window.currentPerfil?.escuela_cct || window.ADM?.escuelaCct;
+  const ciclo = window.CICLO_ACTIVO || new Date().getFullYear() + '-' + (new Date().getFullYear()+1);
+  try {
+    if (sbRef) {
+      // Desactivar alumno en alumnos_grupos
+      await sbRef.from('alumnos_grupos').update({ activo: false }).eq('alumno_id', alumnoId);
+      // Registrar movimiento
+      await sbRef.from('control_escolar_movimientos').insert({
+        alumno_id: alumnoId, tipo: 'baja', motivo, ciclo,
+        escuela_cct: cct, created_at: new Date().toISOString()
+      }).catch(() => {}); // tabla puede no existir aún
+    }
+    // Quitar de datos locales
+    window._ctrlAlumnos = (window._ctrlAlumnos||[]).filter(a => a.id !== alumnoId);
+    ADM.alumnos = (ADM.alumnos||[]).filter(a => a.id !== alumnoId);
+    ADM.toast?.(`✅ ${nombre} dado de baja`, 'ok');
+    admCtrlEscolarCargar();
+  } catch(e) { ADM.toast?.('❌ ' + e.message, 'err'); }
+}
+window.admCtrlConfirmarBaja = admCtrlConfirmarBaja;
+
+// ── Traslado individual ─────────────────────────────────────────────────
+function admCtrlTraslado(alumnoId, nombre) {
+  const grupos = window._ctrlGrupos || window.ADM?.grupos || [];
+  const optsGrupos = grupos.map(g =>
+    `<option value="${g.id}">${g.nombre || g.grado+'° '+(g.seccion||'')}</option>`).join('');
+  ADM.abrirModal?.('ctrl-modal-traslado', `🔄 Traslado — ${nombre}`,
+    `<div style="margin-bottom:12px;">
+      <label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:6px;">Mover a grupo</label>
+      <select id="ctrl-traslado-grupo" style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:13px;outline:none;">
+        <option value="">Seleccionar grupo…</option>${optsGrupos}
+      </select>
+    </div>
+    <div>
+      <label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:6px;">Motivo</label>
+      <input type="text" id="ctrl-traslado-motivo" placeholder="Ej: Cambio de turno" style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:13px;outline:none;box-sizing:border-box;">
+    </div>`,
+    `admCtrlConfirmarTraslado('${alumnoId}','${nombre.replace(/'/g,"\\'")}')`,
+    'Confirmar traslado'
+  );
+}
+
+async function admCtrlConfirmarTraslado(alumnoId, nombre) {
+  const grupoId = document.getElementById('ctrl-traslado-grupo')?.value;
+  const motivo  = document.getElementById('ctrl-traslado-motivo')?.value || '';
+  if (!grupoId) { ADM.toast?.('⚠️ Selecciona un grupo destino', 'warn'); return; }
+  ADM.cerrarModal?.();
+  const sbRef = window.sb;
+  const cct = window.currentPerfil?.escuela_cct || window.ADM?.escuelaCct;
+  const ciclo = window.CICLO_ACTIVO || new Date().getFullYear() + '-' + (new Date().getFullYear()+1);
+  try {
+    if (sbRef) {
+      await sbRef.from('alumnos_grupos').update({ grupo_id: grupoId }).eq('alumno_id', alumnoId).eq('activo', true);
+      await sbRef.from('control_escolar_movimientos').insert({
+        alumno_id: alumnoId, tipo: 'traslado', motivo: motivo || 'traslado interno',
+        grupo_id_destino: grupoId, ciclo, escuela_cct: cct, created_at: new Date().toISOString()
+      }).catch(() => {});
+    }
+    ADM.toast?.(`✅ ${nombre} trasladado al nuevo grupo`, 'ok');
+    admCtrlEscolarCargar();
+  } catch(e) { ADM.toast?.('❌ ' + e.message, 'err'); }
+}
+window.admCtrlConfirmarTraslado = admCtrlConfirmarTraslado;
+
+// ── Render movimientos ──────────────────────────────────────────────────
+function admCtrlRenderMovimientos() {
   const tbody = document.getElementById('ctrl-tabla-body');
   if (!tbody) return;
-  const filtrados = (window._ctrlData || []).filter(a => !buscar || (a.nombre||'').toLowerCase().includes(buscar) || (a.curp||'').toLowerCase().includes(buscar));
-  if (!filtrados.length) { tbody.innerHTML = '<tr><td colspan="6" style="padding:32px;text-align:center;color:#94a3b8;">Sin resultados</td></tr>'; return; }
-  tbody.innerHTML = filtrados.map(a => `
-    <tr style="border-top:1px solid #f1f5f9;">
-      <td style="padding:12px 16px;font-size:13px;font-weight:600;color:#0f172a;">${a.nombre||'—'}</td>
-      <td style="padding:12px 16px;font-size:12px;color:#64748b;">${a.curp||'—'}</td>
-      <td style="padding:12px 16px;font-size:12px;font-weight:700;color:#0d5c2f;">${a.grado||'—'}° ${a.seccion||''}</td>
-      <td style="padding:12px 16px;"><span style="background:#dcfce7;color:#166534;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:700;">Inscrito</span></td>
-      <td style="padding:12px 16px;font-size:12px;color:#64748b;">${a.created_at ? new Date(a.created_at).toLocaleDateString('es-MX') : '—'}</td>
-      <td style="padding:12px 16px;">
-        <button onclick="admCtrlVerExpediente('${a.id}')" style="padding:5px 10px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:7px;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;color:#475569;">Ver</button>
-      </td>
-    </tr>`).join('');
+  const movs = window._ctrlMovimientos || [];
+  if (!movs.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="padding:32px;text-align:center;color:#94a3b8;font-style:italic;">Sin movimientos registrados en este ciclo</td></tr>';
+    return;
+  }
+  const tipoCfg = {
+    inscripcion:{ label:'Inscripción', bg:'#dcfce7', color:'#166534' },
+    alta:       { label:'Alta',        bg:'#dbeafe', color:'#1e40af' },
+    baja:       { label:'Baja',        bg:'#fee2e2', color:'#b91c1c' },
+    traslado:   { label:'Traslado',    bg:'#fef9c3', color:'#a16207' },
+  };
+  tbody.innerHTML = movs.map(m => {
+    const nombre = `${m.usuarios?.nombre||''} ${m.usuarios?.apellido||m.usuarios?.apellido_p||''}`.trim() || '—';
+    const grupo  = m.grupos?.nombre || (m.grupos ? m.grupos.grado+'°'+(m.grupos.seccion||'') : '—');
+    const cfg    = tipoCfg[m.tipo] || { label: m.tipo, bg:'#f1f5f9', color:'#475569' };
+    const fecha  = m.created_at ? new Date(m.created_at).toLocaleDateString('es-MX') : '—';
+    return `<tr style="border-top:1px solid #f1f5f9;">
+      <td style="padding:12px 16px;font-size:13px;font-weight:600;color:#0f172a;">${nombre}</td>
+      <td style="padding:12px 16px;font-size:12px;font-weight:700;color:#0d5c2f;">${grupo}</td>
+      <td style="padding:12px 16px;"><span style="background:${cfg.bg};color:${cfg.color};padding:3px 10px;border-radius:99px;font-size:11px;font-weight:700;">${cfg.label}</span></td>
+      <td style="padding:12px 16px;font-size:12px;color:#64748b;">${m.ciclo||'—'}</td>
+      <td style="padding:12px 16px;font-size:12px;color:#64748b;">${fecha}</td>
+      <td style="padding:12px 16px;"></td>
+    </tr>`;
+  }).join('');
 }
-function admCtrlNuevaInscripcion() { ADM.toast && ADM.toast('Usa la sección Importar o el formulario de alumnos para inscribir'); }
-function admCtrlVerExpediente(id) { ADM.navTo('expedientes'); }
-window.admCtrlEscolarCargar = admCtrlEscolarCargar;
+
+// ── Panel traslado de ciclo ─────────────────────────────────────────────
+function admCtrlRenderCiclo() {
+  const el = document.getElementById('ctrl-ciclo-panel');
+  if (!el) return;
+  const grupos  = window._ctrlGrupos  || window.ADM?.grupos || [];
+  const alumnos = window._ctrlAlumnos || window.ADM?.alumnos || [];
+  const cicloActual = window.CICLO_ACTIVO || new Date().getFullYear() + '-' + (new Date().getFullYear()+1);
+  const [anioInicio] = cicloActual.split('-').map(Number);
+  const siguienteCiclo = `${anioInicio+1}-${anioInicio+2}`;
+
+  const nivelGrupos = window.ADM?.escuelaNivel || 'secundaria';
+  const maxGrado = nivelGrupos === 'primaria' ? 6 : 3;
+
+  const alumnosPorGrupo = {};
+  alumnos.forEach(a => {
+    (a.alumnos_grupos || []).forEach(ag => {
+      const gid = ag.grupo_id;
+      if (!alumnosPorGrupo[gid]) alumnosPorGrupo[gid] = [];
+      alumnosPorGrupo[gid].push(a);
+    });
+  });
+
+  const gruposEgresados = grupos.filter(g => String(g.grado) === String(maxGrado));
+  const gruposPromocion = grupos.filter(g => String(g.grado) !== String(maxGrado));
+  const totalEgresan = gruposEgresados.reduce((s,g) => s + (alumnosPorGrupo[g.id]||[]).length, 0);
+  const totalPromueven = gruposPromocion.reduce((s,g) => s + (alumnosPorGrupo[g.id]||[]).length, 0);
+
+  el.innerHTML = `
+    <div style="background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:14px;padding:18px;margin-bottom:20px;">
+      <div style="font-size:14px;font-weight:800;color:#1e40af;margin-bottom:8px;">🔄 Traslado a ciclo ${siguienteCiclo}</div>
+      <div style="font-size:13px;color:#1e3a8a;">Este proceso avanza de grado a todos los alumnos activos y crea las relaciones del nuevo ciclo escolar.</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px;">
+      <div style="background:white;border:1.5px solid #e2e8f0;border-radius:12px;padding:16px;text-align:center;">
+        <div style="font-size:28px;font-weight:800;color:#0d5c2f;font-family:'Fraunces',serif;">${totalPromueven}</div>
+        <div style="font-size:11px;color:#64748b;margin-top:4px;text-transform:uppercase;letter-spacing:.5px;">Avanzan de grado</div>
+      </div>
+      <div style="background:#fff7ed;border:1.5px solid #fed7aa;border-radius:12px;padding:16px;text-align:center;">
+        <div style="font-size:28px;font-weight:800;color:#c2410c;font-family:'Fraunces',serif;">${totalEgresan}</div>
+        <div style="font-size:11px;color:#9a3412;margin-top:4px;text-transform:uppercase;letter-spacing:.5px;">Egresan (${maxGrado}° grado)</div>
+      </div>
+      <div style="background:white;border:1.5px solid #e2e8f0;border-radius:12px;padding:16px;text-align:center;">
+        <div style="font-size:28px;font-weight:800;color:#1d4ed8;font-family:'Fraunces',serif;">${grupos.length}</div>
+        <div style="font-size:11px;color:#64748b;margin-top:4px;text-transform:uppercase;letter-spacing:.5px;">Grupos a trasladar</div>
+      </div>
+    </div>
+    <div style="background:white;border:1.5px solid #e2e8f0;border-radius:14px;padding:18px;margin-bottom:20px;">
+      <div style="font-size:13px;font-weight:800;color:#0f172a;margin-bottom:12px;">Grupos a trasladar al siguiente ciclo</div>
+      ${grupos.map(g => {
+        const nom = g.nombre || (g.grado + '° ' + (g.seccion||''));
+        const cnt = (alumnosPorGrupo[g.id]||[]).length;
+        const esUltimo = String(g.grado) === String(maxGrado);
+        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f1f5f9;">
+          <div style="font-size:13px;font-weight:700;color:#0f172a;">${nom}</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:12px;color:#64748b;">${cnt} alumnos</span>
+            ${esUltimo
+              ? `<span style="background:#fff7ed;color:#9a3412;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700;">Egresa</span>`
+              : `<span style="background:#f0fdf4;color:#166534;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700;">→ ${Number(g.grado)+1}° grado</span>`}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;">
+      <button onclick="admCtrlTab('grupos')" style="padding:10px 18px;background:#f1f5f9;border:none;border-radius:9px;font-family:'Sora',sans-serif;font-size:13px;font-weight:700;cursor:pointer;color:#475569;">Cancelar</button>
+      <button onclick="admCtrlEjecutarTraslado()" style="padding:10px 20px;background:linear-gradient(135deg,#1e40af,#1d4ed8);color:white;border:none;border-radius:9px;font-family:'Sora',sans-serif;font-size:13px;font-weight:700;cursor:pointer;">🔄 Ejecutar traslado a ${siguienteCiclo}</button>
+    </div>`;
+}
+
+async function admCtrlEjecutarTraslado() {
+  const sbRef = window.sb;
+  const grupos = window._ctrlGrupos || window.ADM?.grupos || [];
+  const alumnos = window._ctrlAlumnos || window.ADM?.alumnos || [];
+  const cicloActual = window.CICLO_ACTIVO || new Date().getFullYear() + '-' + (new Date().getFullYear()+1);
+  const [anioInicio] = cicloActual.split('-').map(Number);
+  const siguienteCiclo = `${anioInicio+1}-${anioInicio+2}`;
+  const nivelGrupos = window.ADM?.escuelaNivel || 'secundaria';
+  const maxGrado = nivelGrupos === 'primaria' ? 6 : 3;
+
+  if (!confirm(`¿Ejecutar traslado al ciclo ${siguienteCiclo}?\n\nEsto avanzará de grado a todos los alumnos activos.`)) return;
+
+  try {
+    let ok = 0, egresados = 0;
+    const alumnosPorGrupo = {};
+    alumnos.forEach(a => {
+      (a.alumnos_grupos || []).forEach(ag => {
+        if (!alumnosPorGrupo[ag.grupo_id]) alumnosPorGrupo[ag.grupo_id] = [];
+        alumnosPorGrupo[ag.grupo_id].push(a);
+      });
+    });
+
+    for (const g of grupos) {
+      const alumnosGrupo = alumnosPorGrupo[g.id] || [];
+      const esUltimo = String(g.grado) === String(maxGrado);
+
+      if (esUltimo) {
+        // Marcar como egresados (desactivar vínculo al grupo)
+        for (const a of alumnosGrupo) {
+          if (sbRef) await sbRef.from('alumnos_grupos').update({ activo: false }).eq('alumno_id', a.id).eq('grupo_id', g.id);
+          egresados++;
+        }
+      } else {
+        // Buscar grupo del siguiente grado con misma sección
+        const grupoSig = grupos.find(gx =>
+          String(gx.grado) === String(Number(g.grado) + 1) &&
+          (gx.seccion || '') === (g.seccion || '') &&
+          (gx.turno || '') === (g.turno || '')
+        ) || grupos.find(gx => String(gx.grado) === String(Number(g.grado) + 1));
+
+        for (const a of alumnosGrupo) {
+          if (sbRef && grupoSig) {
+            // Actualizar ciclo en el vínculo actual
+            await sbRef.from('alumnos_grupos')
+              .update({ grupo_id: grupoSig.id, ciclo: siguienteCiclo })
+              .eq('alumno_id', a.id).eq('grupo_id', g.id).eq('activo', true);
+          }
+          ok++;
+        }
+      }
+    }
+
+    // Actualizar ciclo activo
+    if (window.CICLO_ACTIVO !== undefined) window.CICLO_ACTIVO = siguienteCiclo;
+    ADM.toast?.(`✅ Traslado completado · ${ok} alumnos avanzaron · ${egresados} egresaron`, 'ok');
+    admCtrlEscolarCargar();
+    admCtrlTab('grupos');
+  } catch(e) { ADM.toast?.('❌ ' + e.message, 'err'); }
+}
+
+function admCtrlFiltrarGrupos() { admCtrlRenderGrupos(); }
+function admCtrlEscolarFiltrar() { admCtrlFiltrarGrupos(); }
+function admCtrlNuevaInscripcion() { ADM.abrirModalAlumno?.() || ADM.toast?.('Usa el botón + Alta alumno en Padrón escolar'); }
+function admCtrlVerExpediente(id) { ADM.navTo?.('expedientes'); }
+
+window.admCtrlEscolarCargar  = admCtrlEscolarCargar;
 window.admCtrlEscolarFiltrar = admCtrlEscolarFiltrar;
+window.admCtrlFiltrarGrupos  = admCtrlFiltrarGrupos;
 window.admCtrlNuevaInscripcion = admCtrlNuevaInscripcion;
-window.admCtrlVerExpediente = admCtrlVerExpediente;
+window.admCtrlVerExpediente  = admCtrlVerExpediente;
+window.admCtrlEditarNota     = admCtrlEditarNota;
+window.admCtrlDarBaja        = admCtrlDarBaja;
+window.admCtrlTraslado       = admCtrlTraslado;
+window.admCtrlRenderCiclo    = admCtrlRenderCiclo;
+window.admCtrlEjecutarTraslado = admCtrlEjecutarTraslado;
 
 // ── SECRETARÍA: EXPEDIENTES ──────────────────────────────────
 const DOCS_REQUERIDOS = ['Acta de nacimiento','CURP','Certificado de primaria','Foto','Cartilla de vacunación','Comprobante domicilio'];

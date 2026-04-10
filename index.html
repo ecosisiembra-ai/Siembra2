@@ -450,8 +450,22 @@ async function cargarPerfilHub() {
     const { data, error } = await sb.from('usuarios').select('*')
       .eq('auth_id', currentUser.id).maybeSingle();
     if (error) { console.warn('[SIEMBRA] Error cargando perfil:', error.message); currentPerfil = null; return; }
-    if (!data)  { console.warn('[SIEMBRA] Perfil no encontrado para auth_id:', currentUser.id); currentPerfil = null; return; }
-    currentPerfil = data;
+    if (data)  { currentPerfil = data; return; }
+
+    // Fallback: buscar por email y vincular auth_id (cubre el caso donde upsert falló)
+    if (currentUser.email) {
+      const { data: p2 } = await sb.from('usuarios').select('*')
+        .eq('email', currentUser.email.toLowerCase()).maybeSingle();
+      if (p2) {
+        await sb.from('usuarios').update({ auth_id: currentUser.id, activo: true })
+          .eq('id', p2.id).catch(() => {});
+        currentPerfil = { ...p2, auth_id: currentUser.id };
+        console.log('[SIEMBRA] cargarPerfilHub: auth_id vinculado por email:', currentUser.email);
+        return;
+      }
+    }
+    console.warn('[SIEMBRA] Perfil no encontrado para auth_id:', currentUser.id);
+    currentPerfil = null;
   } catch(e) {
     console.warn('[SIEMBRA] Error cargando perfil:', e.message);
     currentPerfil = null;
@@ -7907,69 +7921,93 @@ html, body { min-height:100vh; font-family:'Sora',sans-serif; overflow-x:hidden;
 
 <!-- ══ ADM PAGE: CONTROL ESCOLAR ══ -->
 <div class="adm-page" id="adm-p-control-escolar" style="display:none;">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+  <!-- Header -->
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
     <div>
       <h2 style="font-family:'Fraunces',serif;font-size:22px;margin-bottom:4px;">📋 Control Escolar</h2>
-      <div style="font-size:13px;color:#64748b;">Inscripciones, altas, bajas y traslados del ciclo escolar</div>
+      <div style="font-size:13px;color:#64748b;">Grupos, alumnos, avance escolar y traslado de ciclo</div>
     </div>
-    <div style="display:flex;gap:8px;">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
       <button onclick="admCtrlEscolarCargar()" style="padding:8px 14px;background:#f1f5f9;border:1.5px solid #e2e8f0;border-radius:9px;font-family:'Sora',sans-serif;font-size:12px;font-weight:700;cursor:pointer;color:#475569;">⟳ Actualizar</button>
       <button onclick="admCtrlNuevaInscripcion()" style="padding:8px 16px;background:linear-gradient(135deg,#0d5c2f,#15803d);color:white;border:none;border-radius:9px;font-family:'Sora',sans-serif;font-size:12px;font-weight:700;cursor:pointer;">+ Nueva inscripción</button>
+      <button onclick="admCtrlTab('ciclo')" style="padding:8px 14px;background:#fff7ed;border:1.5px solid #fed7aa;color:#c2410c;border-radius:9px;font-family:'Sora',sans-serif;font-size:12px;font-weight:700;cursor:pointer;">🔄 Trasladar ciclo</button>
     </div>
   </div>
-  <!-- Stats -->
-  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;">
+  <!-- KPI Stats -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px;">
     <div style="background:white;border-radius:12px;border:1.5px solid #e2e8f0;padding:16px;text-align:center;">
-      <div style="font-size:26px;font-weight:800;font-family:'Fraunces',serif;color:#0d5c2f;" id="ctrl-stat-inscritos">—</div>
-      <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">Inscritos</div>
+      <div style="font-size:28px;font-weight:800;font-family:'Fraunces',serif;color:#0d5c2f;" id="ctrl-stat-inscritos">—</div>
+      <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-top:4px;">Inscritos</div>
     </div>
     <div style="background:white;border-radius:12px;border:1.5px solid #e2e8f0;padding:16px;text-align:center;">
-      <div style="font-size:26px;font-weight:800;font-family:'Fraunces',serif;color:#1e40af;" id="ctrl-stat-altas">—</div>
-      <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">Altas</div>
+      <div style="font-size:28px;font-weight:800;font-family:'Fraunces',serif;color:#1e40af;" id="ctrl-stat-grupos">—</div>
+      <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-top:4px;">Grupos</div>
+    </div>
+    <div style="background:#fff7ed;border-radius:12px;border:1.5px solid #fed7aa;padding:16px;text-align:center;">
+      <div style="font-size:28px;font-weight:800;font-family:'Fraunces',serif;color:#dc2626;" id="ctrl-stat-criticos">—</div>
+      <div style="font-size:11px;color:#9a3412;text-transform:uppercase;letter-spacing:.5px;margin-top:4px;">Críticos</div>
+    </div>
+    <div style="background:#f0fdf4;border-radius:12px;border:1.5px solid #86efac;padding:16px;text-align:center;">
+      <div style="font-size:28px;font-weight:800;font-family:'Fraunces',serif;color:#16a34a;" id="ctrl-stat-destacados">—</div>
+      <div style="font-size:11px;color:#166534;text-transform:uppercase;letter-spacing:.5px;margin-top:4px;">Destacados</div>
     </div>
     <div style="background:white;border-radius:12px;border:1.5px solid #e2e8f0;padding:16px;text-align:center;">
-      <div style="font-size:26px;font-weight:800;font-family:'Fraunces',serif;color:#dc2626;" id="ctrl-stat-bajas">—</div>
-      <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">Bajas</div>
-    </div>
-    <div style="background:white;border-radius:12px;border:1.5px solid #e2e8f0;padding:16px;text-align:center;">
-      <div style="font-size:26px;font-weight:800;font-family:'Fraunces',serif;color:#d97706;" id="ctrl-stat-traslados">—</div>
-      <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">Traslados</div>
+      <div style="font-size:28px;font-weight:800;font-family:'Fraunces',serif;color:#d97706;" id="ctrl-stat-bajas">—</div>
+      <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-top:4px;">Bajas del ciclo</div>
     </div>
   </div>
-  <!-- Filtros -->
-  <div style="background:white;border-radius:12px;border:1.5px solid #e2e8f0;padding:16px;margin-bottom:16px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
-    <select id="ctrl-filtro-tipo" onchange="admCtrlEscolarCargar()" style="padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:'Sora',sans-serif;font-size:12px;color:#475569;background:white;">
-      <option value="">Todos los movimientos</option>
-      <option value="inscripcion">Inscripciones</option>
-      <option value="alta">Altas</option>
-      <option value="baja">Bajas</option>
-      <option value="traslado">Traslados</option>
-    </select>
-    <select id="ctrl-filtro-grado" onchange="admCtrlEscolarCargar()" style="padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:'Sora',sans-serif;font-size:12px;color:#475569;background:white;">
-      <option value="">Todos los grados</option>
-      <option value="1">1°</option>
-      <option value="2">2°</option>
-      <option value="3">3°</option>
-    </select>
-    <input type="text" id="ctrl-buscar" placeholder="Buscar alumno…" oninput="admCtrlEscolarFiltrar()" style="flex:1;min-width:200px;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:'Sora',sans-serif;font-size:12px;outline:none;">
+  <!-- Tabs -->
+  <div style="display:flex;gap:0;border-bottom:2px solid #e2e8f0;margin-bottom:20px;">
+    <button id="ctrl-tab-grupos"    onclick="admCtrlTab('grupos')"    style="padding:10px 20px;border:none;background:none;font-family:'Sora',sans-serif;font-size:13px;font-weight:700;color:#0d5c2f;border-bottom:2px solid #0d5c2f;margin-bottom:-2px;cursor:pointer;">🏫 Por grupo</button>
+    <button id="ctrl-tab-lista"     onclick="admCtrlTab('lista')"     style="padding:10px 20px;border:none;background:none;font-family:'Sora',sans-serif;font-size:13px;font-weight:600;color:#64748b;cursor:pointer;">📋 Movimientos</button>
+    <button id="ctrl-tab-ciclo"     onclick="admCtrlTab('ciclo')"     style="padding:10px 20px;border:none;background:none;font-family:'Sora',sans-serif;font-size:13px;font-weight:600;color:#64748b;cursor:pointer;">🔄 Trasladar ciclo</button>
   </div>
-  <!-- Tabla -->
-  <div style="background:white;border-radius:12px;border:1.5px solid #e2e8f0;overflow:hidden;">
-    <table style="width:100%;border-collapse:collapse;">
-      <thead style="background:#f8fafc;">
-        <tr>
-          <th style="padding:12px 16px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;text-align:left;">Alumno</th>
-          <th style="padding:12px 16px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;text-align:left;">CURP</th>
-          <th style="padding:12px 16px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;text-align:left;">Grupo</th>
-          <th style="padding:12px 16px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;text-align:left;">Tipo</th>
-          <th style="padding:12px 16px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;text-align:left;">Fecha</th>
-          <th style="padding:12px 16px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;text-align:left;">Acciones</th>
-        </tr>
-      </thead>
-      <tbody id="ctrl-tabla-body">
-        <tr><td colspan="6" style="padding:40px;text-align:center;color:#94a3b8;">Cargando…</td></tr>
-      </tbody>
-    </table>
+
+  <!-- Tab: Por grupo -->
+  <div id="ctrl-panel-grupos">
+    <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center;">
+      <input type="text" id="ctrl-buscar" placeholder="🔍 Buscar alumno…" oninput="admCtrlFiltrarGrupos()" style="flex:1;min-width:200px;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:'Sora',sans-serif;font-size:12px;outline:none;">
+      <select id="ctrl-filtro-grado" onchange="admCtrlFiltrarGrupos()" style="padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:'Sora',sans-serif;font-size:12px;color:#475569;background:white;">
+        <option value="">Todos los grados</option>
+        <option value="1">1°</option><option value="2">2°</option><option value="3">3°</option>
+        <option value="4">4°</option><option value="5">5°</option><option value="6">6°</option>
+      </select>
+      <select id="ctrl-filtro-etiqueta" onchange="admCtrlFiltrarGrupos()" style="padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:'Sora',sans-serif;font-size:12px;color:#475569;background:white;">
+        <option value="">Todos los alumnos</option>
+        <option value="critico">⚠️ Críticos</option>
+        <option value="destacado">⭐ Destacados</option>
+        <option value="normal">✓ Sin etiqueta</option>
+      </select>
+    </div>
+    <div id="ctrl-grupos-list">
+      <div style="padding:48px;text-align:center;color:#94a3b8;">Cargando grupos…</div>
+    </div>
+  </div>
+
+  <!-- Tab: Movimientos -->
+  <div id="ctrl-panel-lista" style="display:none;">
+    <div style="background:white;border-radius:12px;border:1.5px solid #e2e8f0;overflow:hidden;">
+      <table style="width:100%;border-collapse:collapse;">
+        <thead style="background:#f8fafc;">
+          <tr>
+            <th style="padding:12px 16px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;text-align:left;">Alumno</th>
+            <th style="padding:12px 16px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;text-align:left;">Grupo</th>
+            <th style="padding:12px 16px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;text-align:left;">Tipo</th>
+            <th style="padding:12px 16px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;text-align:left;">Ciclo</th>
+            <th style="padding:12px 16px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;text-align:left;">Fecha</th>
+            <th style="padding:12px 16px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;text-align:left;">Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="ctrl-tabla-body">
+          <tr><td colspan="6" style="padding:40px;text-align:center;color:#94a3b8;">—</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Tab: Trasladar ciclo -->
+  <div id="ctrl-panel-ciclo" style="display:none;">
+    <div id="ctrl-ciclo-panel"></div>
   </div>
 </div>
 
@@ -10274,6 +10312,7 @@ html, body { min-height:100vh; font-family:'Sora',sans-serif; overflow-x:hidden;
         <button class="adm-nav" onclick="subdirNav('pemc')"      id="sn-pemc">🎯 PEMC / Ruta mejora</button>
         <button class="adm-nav" onclick="subdirNav('cte')"       id="sn-cte">🤝 Consejo Técnico</button>
         <button class="adm-nav" onclick="subdirNav('calendario')" id="sn-calendario">📅 Calendario escolar</button>
+        <button class="adm-nav" onclick="subdirNav('control-escolar')" id="sn-control-escolar">🗂️ Control Escolar</button>
         <button class="adm-nav" onclick="subdirNav('reportes')"  id="sn-reportes">📊 Reportes</button>
       </nav>
       <div style="padding:14px 16px;border-top:1px solid rgba(255,255,255,.08);">
@@ -10907,6 +10946,75 @@ html, body { min-height:100vh; font-family:'Sora',sans-serif; overflow-x:hidden;
               <div style="font-size:48px;margin-bottom:12px;">📝</div>
               <div style="font-size:15px;font-weight:700;color:#0f172a;">Selecciona un grupo y alumno</div>
               <div style="font-size:13px;color:#94a3b8;margin-top:6px;">La boleta NEM se generará automáticamente</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── CONTROL ESCOLAR — Director/Subdirector ── -->
+        <div class="subdir-page" id="subdir-p-control-escolar" style="display:none;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px;">
+            <div>
+              <div style="font-size:22px;font-weight:700;font-family:'Fraunces',serif;">🗂️ Control Escolar</div>
+              <div style="font-size:13px;color:#64748b;margin-top:2px;">Seguimiento académico · Ciclo <span id="subdir-ctrl-ciclo-label">—</span></div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button onclick="subdirCtrlCargar()" style="padding:9px 16px;background:#f1f5f9;border:1.5px solid #e2e8f0;border-radius:9px;font-family:'Sora',sans-serif;font-size:12px;font-weight:700;cursor:pointer;color:#475569;">🔄 Actualizar</button>
+              <button onclick="subdirCtrlNuevaInscripcion()" style="padding:9px 16px;background:#0d5c2f;color:white;border:none;border-radius:9px;font-family:'Sora',sans-serif;font-size:12px;font-weight:700;cursor:pointer;">+ Nueva inscripción</button>
+            </div>
+          </div>
+
+          <!-- KPIs -->
+          <div id="subdir-ctrl-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:20px;"></div>
+
+          <!-- Tabs -->
+          <div style="display:flex;gap:0;border-bottom:2px solid #e2e8f0;margin-bottom:18px;">
+            <button id="subdir-ctrl-tab-grupos" onclick="subdirCtrlTab('grupos')" style="padding:10px 18px;background:none;border:none;font-family:'Sora',sans-serif;font-size:13px;font-weight:700;color:#0d5c2f;border-bottom:2px solid #0d5c2f;margin-bottom:-2px;cursor:pointer;">Por grupo</button>
+            <button id="subdir-ctrl-tab-lista" onclick="subdirCtrlTab('lista')" style="padding:10px 18px;background:none;border:none;font-family:'Sora',sans-serif;font-size:13px;font-weight:600;color:#64748b;border-bottom:2px solid transparent;cursor:pointer;">Movimientos</button>
+            <button id="subdir-ctrl-tab-ciclo" onclick="subdirCtrlTab('ciclo')" style="padding:10px 18px;background:none;border:none;font-family:'Sora',sans-serif;font-size:13px;font-weight:600;color:#64748b;border-bottom:2px solid transparent;cursor:pointer;">Trasladar ciclo</button>
+          </div>
+
+          <!-- Tab: Por grupo -->
+          <div id="subdir-ctrl-panel-grupos">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
+              <input id="subdir-ctrl-buscar" type="text" placeholder="Buscar alumno…" oninput="subdirCtrlFiltrar()" style="padding:9px 14px;border:1.5px solid #e2e8f0;border-radius:9px;font-family:'Sora',sans-serif;font-size:13px;outline:none;flex:1;min-width:160px;">
+              <select id="subdir-ctrl-filtro-grado" onchange="subdirCtrlFiltrar()" style="padding:9px 14px;border:1.5px solid #e2e8f0;border-radius:9px;font-family:'Sora',sans-serif;font-size:13px;outline:none;background:white;">
+                <option value="">Todos los grados</option>
+                <option value="1">1°</option><option value="2">2°</option><option value="3">3°</option>
+                <option value="4">4°</option><option value="5">5°</option><option value="6">6°</option>
+              </select>
+              <select id="subdir-ctrl-filtro-etiqueta" onchange="subdirCtrlFiltrar()" style="padding:9px 14px;border:1.5px solid #e2e8f0;border-radius:9px;font-family:'Sora',sans-serif;font-size:13px;outline:none;background:white;">
+                <option value="">Todas las etiquetas</option>
+                <option value="critico">Crítico</option>
+                <option value="destacado">Destacado</option>
+              </select>
+            </div>
+            <div id="subdir-ctrl-grupos-list">
+              <div style="padding:60px;text-align:center;color:#94a3b8;"><div style="font-size:36px;margin-bottom:10px;">🗂️</div><div>Cargando control escolar…</div></div>
+            </div>
+          </div>
+
+          <!-- Tab: Movimientos -->
+          <div id="subdir-ctrl-panel-lista" style="display:none;">
+            <div style="overflow-x:auto;background:white;border-radius:12px;border:1px solid #e2e8f0;">
+              <table style="width:100%;border-collapse:collapse;font-family:'Sora',sans-serif;font-size:13px;">
+                <thead><tr style="border-bottom:2px solid #e2e8f0;">
+                  <th style="padding:12px 16px;text-align:left;font-weight:700;color:#475569;">Alumno</th>
+                  <th style="padding:12px 16px;text-align:left;font-weight:700;color:#475569;">Tipo</th>
+                  <th style="padding:12px 16px;text-align:left;font-weight:700;color:#475569;">Grupo origen</th>
+                  <th style="padding:12px 16px;text-align:left;font-weight:700;color:#475569;">Detalle</th>
+                  <th style="padding:12px 16px;text-align:left;font-weight:700;color:#475569;">Fecha</th>
+                </tr></thead>
+                <tbody id="subdir-ctrl-tabla-body">
+                  <tr><td colspan="5" style="padding:40px;text-align:center;color:#94a3b8;">Sin movimientos registrados</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Tab: Trasladar ciclo -->
+          <div id="subdir-ctrl-panel-ciclo" style="display:none;">
+            <div id="subdir-ctrl-ciclo-panel">
+              <div style="padding:40px;text-align:center;color:#94a3b8;">Cargando vista de ciclo…</div>
             </div>
           </div>
         </div>

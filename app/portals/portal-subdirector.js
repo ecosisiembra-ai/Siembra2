@@ -96,6 +96,7 @@ function subdirNav(page) {
     'horarios-pub':'Horarios publicados',
     'asistencia-personal':'Asistencia del personal',
     'alertas-cruzadas':'Alertas del plantel',
+    'control-escolar':'Control Escolar',
   };
   const t = document.getElementById('subdir-title');
   if (t) t.textContent = titles[page] || page;
@@ -106,6 +107,7 @@ function subdirNav(page) {
   if (page === 'horarios-pub') subdirCargarHorariosPublicados();
   if (page === 'asistencia-personal') subdirAsistenciaPersonalCargar();
   if (page === 'alertas-cruzadas')    subdirAlertasCargar();
+  if (page === 'control-escolar')     subdirCtrlCargar();
 }
 
 const SUBDIR_DOCENTES = [
@@ -276,3 +278,347 @@ function subdirAgregarPuntoCTE() {
     hubToast('✅ Punto agregado al orden del día','ok');
   });
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CONTROL ESCOLAR — Director / Subdirector
+// ══════════════════════════════════════════════════════════════════════════════
+
+// localStorage helpers (shared key with admin module)
+function _sdCtrlGetNotas() {
+  try { return JSON.parse(localStorage.getItem('siembra_ctrl_notas') || '{}'); } catch{ return {}; }
+}
+function _sdCtrlGetNota(id) { return _sdCtrlGetNotas()[id] || {}; }
+function _sdCtrlSetNota(id, patch) {
+  const all = _sdCtrlGetNotas();
+  all[id] = Object.assign(all[id] || {}, patch);
+  localStorage.setItem('siembra_ctrl_notas', JSON.stringify(all));
+}
+
+// In-memory data for subdir ctrl
+window._sdCtrlGrupos     = [];
+window._sdCtrlAlumnos    = {};    // grupoId -> [alumno]
+window._sdCtrlMovimientos = [];
+
+function subdirCtrlTab(tab) {
+  ['grupos','lista','ciclo'].forEach(t => {
+    const btn   = document.getElementById('subdir-ctrl-tab-' + t);
+    const panel = document.getElementById('subdir-ctrl-panel-' + t);
+    const active = t === tab;
+    if (btn) {
+      btn.style.fontWeight    = active ? '700' : '600';
+      btn.style.color         = active ? '#0d5c2f' : '#64748b';
+      btn.style.borderBottom  = active ? '2px solid #0d5c2f' : '2px solid transparent';
+      btn.style.marginBottom  = active ? '-2px' : '0';
+    }
+    if (panel) panel.style.display = active ? '' : 'none';
+  });
+  if (tab === 'ciclo') _sdCtrlRenderCiclo();
+}
+window.subdirCtrlTab = subdirCtrlTab;
+
+async function subdirCtrlCargar() {
+  const sbRef = window.sb;
+  const cct   = window.currentPerfil?.escuela_cct;
+  const ciclo = window.CICLO_ACTIVO || '2025-2026';
+  const listEl = document.getElementById('subdir-ctrl-grupos-list');
+  const ciclolabel = document.getElementById('subdir-ctrl-ciclo-label');
+  if (ciclolabel) ciclolabel.textContent = ciclo;
+  if (listEl) listEl.innerHTML = '<div style="padding:40px;text-align:center;color:#94a3b8;">Cargando…</div>';
+  if (!sbRef || !cct) {
+    if (listEl) listEl.innerHTML = '<div style="padding:40px;text-align:center;color:#94a3b8;">Sin conexión</div>';
+    return;
+  }
+  try {
+    // Cargar grupos
+    const { data: grupos } = await sbRef.from('grupos')
+      .select('id,nombre,grado,seccion,turno')
+      .eq('escuela_cct', cct).eq('activo', true).order('grado').order('seccion');
+    window._sdCtrlGrupos = grupos || [];
+
+    // Cargar alumnos con su grupo activo
+    const { data: rows } = await sbRef.from('usuarios')
+      .select('id,nombre,apellido_p,apellido_m,curp,alumnos_grupos!inner(grupo_id,ciclo,activo,grupos(id,nombre,grado,seccion))')
+      .eq('escuela_cct', cct).eq('rol', 'alumno')
+      .eq('alumnos_grupos.activo', true)
+      .eq('alumnos_grupos.ciclo', ciclo);
+    const alumnosMap = {};
+    (rows || []).forEach(u => {
+      const ag = Array.isArray(u.alumnos_grupos) ? u.alumnos_grupos[0] : u.alumnos_grupos;
+      const gid = ag?.grupo_id;
+      if (!gid) return;
+      if (!alumnosMap[gid]) alumnosMap[gid] = [];
+      alumnosMap[gid].push({ id: u.id, nombre: `${u.nombre||''} ${u.apellido_p||''} ${u.apellido_m||''}`.trim(), curp: u.curp || '' });
+    });
+    window._sdCtrlAlumnos = alumnosMap;
+
+    // Cargar movimientos
+    const { data: movs } = await sbRef.from('control_escolar_movimientos')
+      .select('*').eq('escuela_cct', cct).eq('ciclo', ciclo).order('created_at', { ascending: false }).limit(200);
+    window._sdCtrlMovimientos = movs || [];
+
+    _sdCtrlRenderKpis();
+    _sdCtrlRenderGrupos();
+    _sdCtrlRenderMovimientos();
+    subdirCtrlTab('grupos');
+  } catch(e) {
+    console.warn('[subdirCtrl]', e.message);
+    if (listEl) listEl.innerHTML = `<div style="padding:20px;color:#dc2626;font-size:13px;">Error: ${e.message}</div>`;
+  }
+}
+window.subdirCtrlCargar = subdirCtrlCargar;
+
+function _sdCtrlRenderKpis() {
+  const el = document.getElementById('subdir-ctrl-kpis');
+  if (!el) return;
+  const notas  = _sdCtrlGetNotas();
+  let total = 0, criticos = 0, destacados = 0, bajas = 0;
+  Object.values(window._sdCtrlAlumnos).forEach(arr => { total += arr.length; });
+  Object.values(notas).forEach(n => {
+    if (n.etiqueta === 'critico')   criticos++;
+    if (n.etiqueta === 'destacado') destacados++;
+  });
+  bajas = (window._sdCtrlMovimientos || []).filter(m => m.tipo === 'baja').length;
+  const grupos = window._sdCtrlGrupos?.length || 0;
+  const kpis = [
+    { label:'Inscritos',   val: total,     color:'#0d5c2f', bg:'#dcfce7' },
+    { label:'Grupos',      val: grupos,    color:'#1e40af', bg:'#dbeafe' },
+    { label:'Críticos',    val: criticos,  color:'#b45309', bg:'#fef3c7' },
+    { label:'Destacados',  val: destacados,color:'#6d28d9', bg:'#ede9fe' },
+    { label:'Bajas ciclo', val: bajas,     color:'#b91c1c', bg:'#fee2e2' },
+  ];
+  el.innerHTML = kpis.map(k => `
+    <div style="background:${k.bg};border-radius:12px;padding:14px 16px;">
+      <div style="font-size:22px;font-weight:800;color:${k.color};">${k.val}</div>
+      <div style="font-size:11px;font-weight:700;color:${k.color};opacity:.75;margin-top:2px;">${k.label}</div>
+    </div>`).join('');
+}
+
+function _sdCtrlRenderGrupos() {
+  const el = document.getElementById('subdir-ctrl-grupos-list');
+  if (!el) return;
+  const buscar  = (document.getElementById('subdir-ctrl-buscar')?.value || '').toLowerCase();
+  const filtGrado = document.getElementById('subdir-ctrl-filtro-grado')?.value || '';
+  const filtEtiq  = document.getElementById('subdir-ctrl-filtro-etiqueta')?.value || '';
+  const notas = _sdCtrlGetNotas();
+
+  const grupos = (window._sdCtrlGrupos || []).filter(g => !filtGrado || String(g.grado) === filtGrado);
+  if (!grupos.length) {
+    el.innerHTML = '<div style="padding:60px;text-align:center;color:#94a3b8;"><div style="font-size:36px;margin-bottom:8px;">📭</div><div>No hay grupos para este ciclo</div></div>';
+    return;
+  }
+
+  el.innerHTML = grupos.map(g => {
+    let alumnos = (window._sdCtrlAlumnos[g.id] || [])
+      .filter(a => !buscar || a.nombre.toLowerCase().includes(buscar) || a.curp.toLowerCase().includes(buscar))
+      .filter(a => !filtEtiq || (notas[a.id]?.etiqueta || 'normal') === filtEtiq);
+
+    const etiqBadge = (a) => {
+      const et = notas[a.id]?.etiqueta || 'normal';
+      const map = { critico:['#fef3c7','#b45309','Crítico'], destacado:['#ede9fe','#6d28d9','Destacado'], normal:['#f1f5f9','#64748b',''] };
+      const [bg,col,label] = map[et] || map.normal;
+      return label ? `<span style="background:${bg};color:${col};font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;">${label}</span>` : '';
+    };
+
+    const grupoNombre = g.nombre || `${g.grado}° ${g.seccion || ''}`.trim();
+    const id = `sdctrl-g-${g.id}`;
+    return `
+      <div style="background:white;border-radius:12px;border:1px solid #e2e8f0;margin-bottom:12px;">
+        <div onclick="admToggleCampo('${id}')" style="display:flex;align-items:center;gap:10px;padding:14px 16px;cursor:pointer;user-select:none;">
+          <div style="width:36px;height:36px;background:linear-gradient(135deg,#1e3a5f,#2455a4);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:white;flex-shrink:0;">${g.grado}°</div>
+          <div style="flex:1;">
+            <div style="font-size:14px;font-weight:700;color:#0f172a;">${grupoNombre}</div>
+            <div style="font-size:12px;color:#64748b;">${alumnos.length} alumnos</div>
+          </div>
+          <span id="${id}-icon" style="color:#94a3b8;font-size:12px;">▼</span>
+        </div>
+        <div id="${id}" style="display:none;border-top:1px solid #f1f5f9;padding:10px 14px 14px;">
+          ${alumnos.length === 0
+            ? '<div style="padding:20px;text-align:center;color:#94a3b8;font-size:13px;">Sin alumnos en este grupo</div>'
+            : alumnos.map(a => {
+                const nota = notas[a.id] || {};
+                return `
+                <div style="display:flex;align-items:center;gap:8px;padding:9px 8px;border-radius:8px;margin-bottom:4px;background:#fafafa;">
+                  <div style="width:30px;height:30px;border-radius:50%;background:#e2e8f0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#475569;flex-shrink:0;">${(a.nombre[0]||'?').toUpperCase()}</div>
+                  <div style="flex:1;min-width:0;">
+                    <div style="font-size:12px;font-weight:700;color:#0f172a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${a.nombre} ${etiqBadge(a)}</div>
+                    ${nota.comentario ? `<div style="font-size:11px;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${nota.comentario}</div>` : ''}
+                  </div>
+                  <button onclick="subdirCtrlEditarNota('${a.id}','${a.nombre.replace(/'/g,'\\\'')}')" style="padding:4px 9px;background:#f1f5f9;border:1.5px solid #e2e8f0;border-radius:7px;font-family:'Sora',sans-serif;font-size:10px;font-weight:700;cursor:pointer;color:#475569;">✏️</button>
+                  <button onclick="subdirCtrlBaja('${a.id}','${a.nombre.replace(/'/g,'\\\'')}')" style="padding:4px 9px;background:#fee2e2;border:1.5px solid #fca5a5;border-radius:7px;font-family:'Sora',sans-serif;font-size:10px;font-weight:700;cursor:pointer;color:#b91c1c;">Baja</button>
+                </div>`;
+              }).join('')
+          }
+        </div>
+      </div>`;
+  }).join('');
+}
+window._sdCtrlRenderGrupos = _sdCtrlRenderGrupos;
+
+function subdirCtrlFiltrar() { _sdCtrlRenderGrupos(); }
+window.subdirCtrlFiltrar = subdirCtrlFiltrar;
+
+function subdirCtrlEditarNota(alumnoId, nombre) {
+  const nota = _sdCtrlGetNota(alumnoId);
+  hubModal(`✏️ Nota — ${nombre}`, `
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div>
+        <div style="font-size:12px;font-weight:700;color:#475569;margin-bottom:6px;">Etiqueta</div>
+        <div style="display:flex;gap:8px;">
+          ${['normal','critico','destacado'].map(e => `
+            <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:8px;border:2px solid ${nota.etiqueta===e||(!nota.etiqueta&&e==='normal')?'#0d5c2f':'#e2e8f0'};border-radius:9px;cursor:pointer;font-size:12px;font-weight:700;">
+              <input type="radio" name="sd-ctrl-etiq" value="${e}" ${nota.etiqueta===e||(!nota.etiqueta&&e==='normal')?'checked':''} style="accent-color:#0d5c2f;">
+              ${e==='normal'?'Normal':e==='critico'?'Crítico':'Destacado'}
+            </label>`).join('')}
+        </div>
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:700;color:#475569;margin-bottom:4px;">Comentario</div>
+        <textarea id="sd-ctrl-comentario" rows="3" placeholder="Observaciones del ciclo…" style="width:100%;padding:9px 14px;border:1.5px solid #e2e8f0;border-radius:9px;font-family:'Sora',sans-serif;font-size:13px;outline:none;resize:vertical;box-sizing:border-box;">${nota.comentario||''}</textarea>
+      </div>
+    </div>`, 'Guardar', () => {
+    const etiqueta  = document.querySelector('input[name="sd-ctrl-etiq"]:checked')?.value || 'normal';
+    const comentario = document.getElementById('sd-ctrl-comentario')?.value?.trim() || '';
+    _sdCtrlSetNota(alumnoId, { etiqueta, comentario });
+    _sdCtrlRenderGrupos();
+    _sdCtrlRenderKpis();
+    hubToast('✅ Nota guardada','ok');
+  });
+}
+window.subdirCtrlEditarNota = subdirCtrlEditarNota;
+
+function subdirCtrlBaja(alumnoId, nombre) {
+  hubModal(`🚫 Dar de baja — ${nombre}`, `
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:9px;padding:12px;font-size:13px;color:#b91c1c;">
+        Esta acción desactivará al alumno del grupo en el ciclo actual. Los datos se conservan.
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:700;color:#475569;margin-bottom:4px;">Motivo</div>
+        <select id="sd-ctrl-baja-motivo" style="width:100%;padding:9px 14px;border:1.5px solid #e2e8f0;border-radius:9px;font-family:'Sora',sans-serif;font-size:13px;outline:none;background:white;box-sizing:border-box;">
+          <option value="traslado_escuela">Traslado a otra escuela</option>
+          <option value="abandono">Abandono escolar</option>
+          <option value="cambio_ciclo">Cambio de ciclo/nivel</option>
+          <option value="otro">Otro</option>
+        </select>
+      </div>
+    </div>`, 'Confirmar baja', async () => {
+    const motivo = document.getElementById('sd-ctrl-baja-motivo')?.value || 'otro';
+    const cct    = window.currentPerfil?.escuela_cct;
+    const ciclo  = window.CICLO_ACTIVO || '2025-2026';
+    try {
+      await window.sb?.from('alumnos_grupos')
+        .update({ activo: false })
+        .eq('usuario_id', alumnoId)
+        .eq('ciclo', ciclo)
+        .catch(()=>{});
+      await window.sb?.from('control_escolar_movimientos')
+        .insert({ escuela_cct: cct, ciclo, alumno_id: alumnoId, tipo: 'baja', detalle: motivo, created_at: new Date().toISOString() })
+        .catch(()=>{});
+    } catch(e) { console.warn(e); }
+    hubToast('✅ Alumno dado de baja','ok');
+    subdirCtrlCargar();
+  });
+}
+window.subdirCtrlBaja = subdirCtrlBaja;
+
+function _sdCtrlRenderMovimientos() {
+  const tbody = document.getElementById('subdir-ctrl-tabla-body');
+  if (!tbody) return;
+  const movs = window._sdCtrlMovimientos || [];
+  if (!movs.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="padding:40px;text-align:center;color:#94a3b8;">Sin movimientos registrados en este ciclo</td></tr>';
+    return;
+  }
+  const tipoMap = { baja:'🚫 Baja', traslado:'🔄 Traslado', inscripcion:'✅ Inscripción', egreso:'🎓 Egreso' };
+  tbody.innerHTML = movs.map(m => {
+    const fecha = m.created_at ? new Date(m.created_at).toLocaleDateString('es-MX') : '—';
+    return `<tr style="border-bottom:1px solid #f1f5f9;">
+      <td style="padding:11px 16px;font-size:13px;font-weight:600;">${m.alumno_nombre || m.alumno_id || '—'}</td>
+      <td style="padding:11px 16px;font-size:13px;">${tipoMap[m.tipo] || m.tipo}</td>
+      <td style="padding:11px 16px;font-size:13px;color:#64748b;">${m.grupo_origen || '—'}</td>
+      <td style="padding:11px 16px;font-size:12px;color:#64748b;">${m.detalle || '—'}</td>
+      <td style="padding:11px 16px;font-size:12px;color:#94a3b8;">${fecha}</td>
+    </tr>`;
+  }).join('');
+}
+
+function _sdCtrlRenderCiclo() {
+  const el = document.getElementById('subdir-ctrl-ciclo-panel');
+  if (!el) return;
+  const cicloActual = window.CICLO_ACTIVO || '2025-2026';
+  const [a1, a2] = cicloActual.split('-').map(Number);
+  const cicloSiguiente = `${a1+1}-${a2+1}`;
+
+  let totalAlumnos = 0, egresados = 0;
+  const maxGrado = 6; // primaria; para secundaria sería 3
+  (window._sdCtrlGrupos || []).forEach(g => {
+    const alumnos = window._sdCtrlAlumnos[g.id] || [];
+    totalAlumnos += alumnos.length;
+    if (parseInt(g.grado) >= maxGrado) egresados += alumnos.length;
+  });
+  const avanzan = totalAlumnos - egresados;
+
+  el.innerHTML = `
+    <div style="background:white;border-radius:12px;border:1px solid #e2e8f0;padding:20px;margin-bottom:16px;">
+      <div style="font-size:15px;font-weight:700;color:#0f172a;margin-bottom:4px;">Avance al ciclo ${cicloSiguiente}</div>
+      <div style="font-size:13px;color:#64748b;margin-bottom:16px;">Esta operación avanzará a todos los alumnos activos al grado siguiente.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:18px;">
+        <div style="background:#dcfce7;border-radius:10px;padding:12px;text-align:center;">
+          <div style="font-size:24px;font-weight:800;color:#0d5c2f;">${totalAlumnos}</div>
+          <div style="font-size:11px;color:#0d5c2f;font-weight:700;">Total inscritos</div>
+        </div>
+        <div style="background:#dbeafe;border-radius:10px;padding:12px;text-align:center;">
+          <div style="font-size:24px;font-weight:800;color:#1e40af;">${avanzan}</div>
+          <div style="font-size:11px;color:#1e40af;font-weight:700;">Avanzan de grado</div>
+        </div>
+        <div style="background:#fef3c7;border-radius:10px;padding:12px;text-align:center;">
+          <div style="font-size:24px;font-weight:800;color:#b45309;">${egresados}</div>
+          <div style="font-size:11px;color:#b45309;font-weight:700;">Egresan (${maxGrado}°)</div>
+        </div>
+      </div>
+      <div style="background:#fef9e7;border:1px solid #fde68a;border-radius:9px;padding:12px;font-size:12px;color:#b45309;margin-bottom:14px;">
+        ⚠️ Esta acción es irreversible. Los alumnos de ${maxGrado}° serán marcados como egresados. Los demás avanzarán un grado.
+      </div>
+      <button onclick="subdirCtrlEjecutarTraslado('${cicloActual}','${cicloSiguiente}')" style="padding:11px 22px;background:#0d5c2f;color:white;border:none;border-radius:9px;font-family:'Sora',sans-serif;font-size:13px;font-weight:700;cursor:pointer;">🎓 Ejecutar traslado al ciclo ${cicloSiguiente}</button>
+    </div>`;
+}
+
+async function subdirCtrlEjecutarTraslado(cicloActual, cicloSiguiente) {
+  if (!confirm(`¿Confirmas el traslado al ciclo ${cicloSiguiente}? Esta acción no se puede deshacer.`)) return;
+  const cct = window.currentPerfil?.escuela_cct;
+  if (!cct || !window.sb) { hubToast('Sin conexión','error'); return; }
+  hubToast('Procesando traslado…','info');
+  try {
+    const maxGrado = 6;
+    for (const g of (window._sdCtrlGrupos || [])) {
+      const alumnos = window._sdCtrlAlumnos[g.id] || [];
+      const grado   = parseInt(g.grado);
+      for (const a of alumnos) {
+        if (grado >= maxGrado) {
+          // Egresar
+          await window.sb.from('alumnos_grupos').update({ activo: false }).eq('usuario_id', a.id).eq('ciclo', cicloActual).catch(()=>{});
+          await window.sb.from('control_escolar_movimientos').insert({ escuela_cct: cct, ciclo: cicloActual, alumno_id: a.id, tipo: 'egreso', detalle: `Egresado a ciclo ${cicloSiguiente}`, created_at: new Date().toISOString() }).catch(()=>{});
+        } else {
+          // Avanzar grado — actualizar ciclo en alumnos_grupos
+          await window.sb.from('alumnos_grupos').update({ ciclo: cicloSiguiente }).eq('usuario_id', a.id).eq('ciclo', cicloActual).catch(()=>{});
+        }
+      }
+    }
+    window.CICLO_ACTIVO = cicloSiguiente;
+    hubToast(`✅ Traslado al ciclo ${cicloSiguiente} completado`,'ok');
+    subdirCtrlCargar();
+  } catch(e) {
+    hubToast('Error en traslado: ' + e.message, 'error');
+  }
+}
+window.subdirCtrlEjecutarTraslado = subdirCtrlEjecutarTraslado;
+
+function subdirCtrlNuevaInscripcion() {
+  hubModal('✅ Nueva inscripción', `
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:9px;padding:12px;font-size:13px;color:#0d5c2f;">
+        Para registrar nuevos alumnos, usa el módulo <strong>Alumnos</strong> en el portal de administración y asígnalos a un grupo.
+      </div>
+    </div>`, 'Entendido', ()=>{});
+}
+window.subdirCtrlNuevaInscripcion = subdirCtrlNuevaInscripcion;

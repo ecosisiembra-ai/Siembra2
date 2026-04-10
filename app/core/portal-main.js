@@ -42,7 +42,8 @@ function inviteMostrarTokenUsado(inv) {
   const email = inv?.email_destino || '';
   const rolLabels = { director:'Director/a', admin:'Administrador/a', docente:'Docente',
     coordinador:'Coordinador/a', ts:'Trabajo Social', prefecto:'Prefecto/a',
-    tutor:'Tutor/a', subdirector:'Subdirector/a' };
+    tutor:'Tutor/a', subdirector:'Subdirector/a',
+    contralor:'Contralor/a', medico:'Médico escolar', orientador:'Orientador/a' };
 
   screen.innerHTML = `
     <div style="max-width:420px;width:100%;text-align:center;">
@@ -184,11 +185,13 @@ function inviteMostrarPantalla(inv) {
   const rolLabels = {
     director:'Director/a', admin:'Administrador/a', docente:'Docente',
     coordinador:'Coordinador/a', ts:'Trabajo Social', prefecto:'Prefecto/a',
-    tutor:'Tutor/a de grupo', subdirector:'Subdirector/a'
+    tutor:'Tutor/a de grupo', subdirector:'Subdirector/a',
+    contralor:'Contralor/a', medico:'Médico escolar', orientador:'Orientador/a',
   };
   const rolIcos = {
     director:'👩‍💼', admin:'⚙️', docente:'👩‍🏫', coordinador:'📋',
-    ts:'⚖️', prefecto:'🛡️', tutor:'🎓', subdirector:'🏫'
+    ts:'⚖️', prefecto:'🛡️', tutor:'🎓', subdirector:'🏫',
+    contralor:'🧾', medico:'🩺', orientador:'🧭',
   };
   const esc = inv.escuelas || {};
   const rolLbl = rolLabels[inv.rol] || inv.rol;
@@ -371,7 +374,7 @@ async function inviteCrearCuenta() {
       // 3b. Si no existía, intentar upsert_usuario RPC
       if (!perfilGuardado) {
         try {
-          await sb.rpc('upsert_usuario', {
+          const { error: rpcCreateErr } = await sb.rpc('upsert_usuario', {
             p_auth_id:    authUser.id,
             p_email:      email,
             p_nombre:     nombre,
@@ -381,10 +384,14 @@ async function inviteCrearCuenta() {
             p_escuela_id:  escuelaId  || '',
             p_escuela_cct: escuelaCct || '',
           });
-          perfilGuardado = true;
-          console.log('[invite] ✅ perfil creado via upsert_usuario RPC');
+          if (!rpcCreateErr) {
+            perfilGuardado = true;
+            console.log('[invite] ✅ perfil creado via upsert_usuario RPC');
+          } else {
+            console.warn('[invite] upsert_usuario RPC error:', rpcCreateErr.message, rpcCreateErr.code);
+          }
         } catch(rpcErr) {
-          console.warn('[invite] upsert_usuario RPC:', rpcErr.message);
+          console.warn('[invite] upsert_usuario RPC excepción:', rpcErr.message);
         }
       }
 
