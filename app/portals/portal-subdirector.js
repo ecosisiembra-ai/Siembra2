@@ -7,9 +7,51 @@ function subdirInit() {
     if (topTag) topTag.textContent = currentPerfil.escuela_nombre || currentPerfil.escuela_cct || 'Mi escuela';
   }
   _topbarPro({ titleId:'subdir-title', prefix:'subdir', searchPlaceholder:'Buscar docente, alerta…' });
-  subdirNav('dashboard');
-  // ── Cargar datos reales + IA al iniciar ──
-  setTimeout(() => subdirCargarDashboard(), 600);
+  // Resolver escuela_cct si falta, luego arrancar
+  _subdirResolverEscuela().then(() => {
+    subdirNav('dashboard');
+    setTimeout(() => subdirCargarDashboard(), 600);
+  });
+}
+
+// Resuelve escuela_cct desde escuela_id cuando llega null en el perfil
+async function _subdirResolverEscuela() {
+  if (!window.sb || !window.currentPerfil) return;
+  const p = window.currentPerfil;
+  // Si ya tiene CCT, nada que hacer
+  if (p.escuela_cct) return;
+  // Intentar obtener CCT desde escuela_id
+  if (p.escuela_id) {
+    try {
+      const { data: esc } = await window.sb.from('escuelas')
+        .select('cct, nombre').eq('id', p.escuela_id).maybeSingle();
+      if (esc?.cct) {
+        p.escuela_cct = esc.cct;
+        window.currentPerfil = p;
+        // Persistir en DB en background
+        window.sb.from('usuarios').update({ escuela_cct: esc.cct })
+          .eq('id', p.id).then(()=>{}).catch(()=>{});
+        // Actualizar tag
+        const topTag = document.getElementById('subdir-escuela-tag');
+        if (topTag) topTag.textContent = esc.nombre || esc.cct;
+        console.log('[subdir] escuela_cct resuelto:', esc.cct);
+        return;
+      }
+    } catch(e) { console.warn('[subdir] resolver escuela:', e.message); }
+  }
+  // Fallback: buscar escuelas disponibles para este usuario
+  try {
+    const { data: ue } = await window.sb.from('usuario_escuelas')
+      .select('escuela_cct, escuelas(cct, nombre)')
+      .eq('usuario_id', p.id).eq('activo', true).limit(1).maybeSingle();
+    if (ue?.escuela_cct) {
+      p.escuela_cct = ue.escuela_cct;
+      window.currentPerfil = p;
+      window.sb.from('usuarios').update({ escuela_cct: ue.escuela_cct })
+        .eq('id', p.id).then(()=>{}).catch(()=>{});
+      console.log('[subdir] escuela_cct desde usuario_escuelas:', ue.escuela_cct);
+    }
+  } catch(e) { console.warn('[subdir] resolver escuela fallback:', e.message); }
 }
 
 // Carga datos reales de Supabase y genera IA insights para el subdirector
@@ -124,7 +166,12 @@ async function subdirCargarHorariosPublicados() {
   const sel = document.getElementById('subdir-horpub-grupo');
   if (!sel) return;
   sel.innerHTML = '<option value="">Cargando grupos…</option>';
-  if (!window.sb || !cct) { sel.innerHTML = '<option value="">Sin conexión</option>'; return; }
+  if (!window.sb || !cct) {
+    // Intentar resolver CCT una vez más antes de rendirse
+    await _subdirResolverEscuela();
+    const cct2 = window.currentPerfil?.escuela_cct;
+    if (!cct2) { sel.innerHTML = '<option value="">Sin conexión</option>'; return; }
+  }
   try {
     const { data: gs } = await window.sb.from('grupos').select('id,nombre,grado,grupo').eq('escuela_cct',cct).eq('activo',true).order('grado');
     sel.innerHTML = '<option value="">Seleccionar grupo…</option>' + (gs||[]).map(g=>`<option value="${g.id}">${g.nombre||g.grado+'° '+g.grupo}</option>`).join('');
@@ -149,10 +196,14 @@ async function subdirVerHorarioGrupo(grupoId) {
 async function subdirRenderDocentes() {
   const grid = document.getElementById('subdir-docentes-grid');
   if (!grid) return;
-  const cct = window.currentPerfil?.escuela_cct;
   const colors = ['#0d5c2f','#1e40af','#5b21b6','#c2410c','#a16207','#047857'];
 
-  if (!window.sb || !cct) {
+  if (!window.sb || !window.currentPerfil?.escuela_cct) {
+    grid.innerHTML = '<div style="grid-column:1/-1;padding:30px;text-align:center;color:#94a3b8;">Resolviendo escuela…</div>';
+    await _subdirResolverEscuela();
+  }
+  const cct = window.currentPerfil?.escuela_cct;
+  if (!cct) {
     grid.innerHTML = '<div style="grid-column:1/-1;padding:30px;text-align:center;color:#94a3b8;">Sin conexión a base de datos</div>';
     return;
   }
