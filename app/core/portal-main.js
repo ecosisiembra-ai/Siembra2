@@ -656,6 +656,25 @@ async function dMarcarNotifLeida(id) {
 }
 
 // NAV
+// ── Nivel docente: fuerza el nivel asignado por admin y muestra/oculta switcher ──
+function _aplicarNivelDocente(escuela) {
+  const nivelDocente  = window.currentPerfil?.nivel;           // 'primaria' | 'secundaria' | 'ambos' | null
+  const escTieneAmbos = escuela?.nivel === 'primaria_y_secundaria';
+  const switcher      = document.getElementById('nivel-selector-doc');
+
+  // Si el admin asignó un nivel específico (no 'ambos'), forzarlo
+  if (nivelDocente && nivelDocente !== 'ambos') {
+    window._nivelActivo = nivelDocente;
+    try { localStorage.setItem('siembra_nivel', nivelDocente); } catch(e) {}
+  }
+
+  // Switcher visible solo si: escuela tiene ambos niveles Y docente tiene acceso a ambos
+  if (switcher) {
+    const puedeSwitch = escTieneAmbos && (!nivelDocente || nivelDocente === 'ambos');
+    switcher.style.display = puedeSwitch ? 'flex' : 'none';
+  }
+}
+
 // ── Selector Primaria / Secundaria ─────────────────────────────────────────
 function cambiarNivel(nivel) {
   const grupoActivoDoc = (window._gruposDocente || []).find(g => String(g.id) === String(window._grupoActivo));
@@ -960,6 +979,9 @@ async function initApp() {
           window._nivelActivo = nivelEsc;
           try { localStorage.setItem('siembra_nivel', nivelEsc); } catch(e) {}
         }
+        // ── Respetar nivel asignado al docente por el admin ──────────
+        // usuarios.nivel puede ser 'primaria', 'secundaria', 'ambos' o null
+        _aplicarNivelDocente(ESCUELA_ACTIVA);
         const nomEl = document.getElementById('doc-escuela-nombre');
         if (nomEl) nomEl.textContent = ESCUELA_ACTIVA.nombre || ESCUELA_ACTIVA.cct;
         // Show/hide multi-school switcher
@@ -982,6 +1004,7 @@ async function initApp() {
               : escFallback.nivel;
             window._nivelActivo = nivelEsc;
             try { localStorage.setItem('siembra_nivel', nivelEsc); } catch(e) {}
+            _aplicarNivelDocente(escFallback);
             const nomEl = document.getElementById('doc-escuela-nombre');
             if (nomEl) nomEl.textContent = escFallback.nombre || escFallback.cct;
             cambiarNivel(window._nivelActivo || 'secundaria');
@@ -1220,6 +1243,13 @@ async function initApp() {
   cargarNoticiasDB();
   if (typeof tutoriaInit === 'function') tutoriaInit();
   if (typeof docenteCargarAvisos === 'function') docenteCargarAvisos();
+  // Cargar alertas del subdirector/dirección en el dashboard del docente
+  if (typeof window._cargarAlertasRol === 'function') {
+    window._cargarAlertasRol('docente').then(alertas => {
+      if (typeof window._renderAlertasBanner === 'function')
+        window._renderAlertasBanner('dash-alertas-plantel', alertas);
+    }).catch(()=>{});
+  }
   setTimeout(() => {
     renderChartAsistencia(window._grupoActivo);
     renderChartRendimiento(window._alumnosActivos || alumnos);
@@ -3688,6 +3718,14 @@ async function examenGuardarGuia() {
     hubToast('✅ Guía guardada' + (visible ? ' y publicada' : ''), 'ok');
     document.getElementById('modal-guia-ex')?.remove();
     examenesRender();
+    // Enviar notificación si se publicó con guía
+    if (visible && (guia_ia || guia_pdf)) {
+      const exActualizado = _examenesData[idx >= 0 ? idx : _examenesData.findIndex(e => e.id === exId)];
+      if (exActualizado) _examenCrearNotificaciones(exActualizado, 'guia_disponible').catch(() => {});
+    } else if (visible) {
+      const exActualizado = _examenesData[idx >= 0 ? idx : _examenesData.findIndex(e => e.id === exId)];
+      if (exActualizado && !exActualizado.notificado) _examenCrearNotificaciones(exActualizado, 'examen_proximo').catch(() => {});
+    }
   } catch(e) { hubToast('❌ ' + e.message, 'err'); }
 }
 
@@ -3697,8 +3735,109 @@ async function examenToggleVisible(exId, nuevoValor) {
     const idx = _examenesData.findIndex(e => e.id === exId);
     if (idx >= 0) _examenesData[idx].visible_alumnos = nuevoValor;
     hubToast(nuevoValor ? '👁 Publicado para alumnos y padres' : '🔒 Ocultado', 'ok');
+    // Enviar notificaciones in-app si se está publicando
+    if (nuevoValor) {
+      const ex = _examenesData[idx >= 0 ? idx : _examenesData.findIndex(e => e.id === exId)];
+      if (ex) _examenCrearNotificaciones(ex, 'examen_proximo').catch(() => {});
+    }
     examenesRender();
   } catch(e) { hubToast('❌ ' + e.message, 'err'); }
+}
+
+// ── Notificaciones automáticas al publicar un examen ─────────────────
+// Crea una notificación para cada alumno del grupo y sus padres vinculados.
+async function _examenCrearNotificaciones(ex, tipo) {
+  if (!sb || !ex?.grupo_id) return;
+
+  // Evitar duplicados: marcar el examen como notificado
+  const ya = _examenesData.find(e => e.id === ex.id);
+  if (ya?.notificado && tipo === 'examen_proximo') return;
+
+  try {
+    // Obtener alumnos del grupo
+    const { data: alGrupos } = await sb.from('alumnos_grupos')
+      .select('alumno_id, usuarios!alumno_id(id, nombre, codigo_vinculacion)')
+      .eq('grupo_id', ex.grupo_id)
+      .eq('activo', true);
+
+    if (!alGrupos?.length) return;
+
+    const alumnoIds = alGrupos.map(ag => ag.alumno_id).filter(Boolean);
+
+    // Obtener padres vinculados (por codigo_vinculacion)
+    const codigos = alGrupos
+      .map(ag => ag.usuarios?.codigo_vinculacion)
+      .filter(Boolean);
+
+    let padreIds = [];
+    if (codigos.length) {
+      const { data: padres } = await sb.from('usuarios')
+        .select('id')
+        .in('codigo_vinculacion', codigos)
+        .eq('rol', 'padre')
+        .eq('activo', true);
+      padreIds = (padres || []).map(p => p.id);
+    }
+
+    const fechaTexto = ex.fecha_aplicacion
+      ? new Date(ex.fecha_aplicacion + 'T12:00:00').toLocaleDateString('es-MX', { weekday:'long', day:'numeric', month:'long' })
+      : 'fecha por confirmar';
+
+    const notificaciones = [];
+
+    // Para alumnos
+    const tituloAlumno = tipo === 'guia_disponible'
+      ? `📚 Guía de estudio disponible: ${ex.nombre}`
+      : `📝 Próximo examen: ${ex.nombre}`;
+    const cuerpoAlumno = tipo === 'guia_disponible'
+      ? `Tu docente subió la guía de estudio para "${ex.nombre}" (${ex.materia}). ¡Revísala y prepárate!`
+      : `Examen de ${ex.materia} el ${fechaTexto}.${ex.temas_guia ? ' Temas: ' + ex.temas_guia : ''} Revisa la guía de estudio en tu portal.`;
+
+    alumnoIds.forEach(uid => {
+      notificaciones.push({
+        usuario_id: uid,
+        tipo,
+        titulo: tituloAlumno,
+        cuerpo: cuerpoAlumno,
+        icono: tipo === 'guia_disponible' ? '📚' : '📝',
+        ref_tipo: 'examen',
+        ref_id: ex.id,
+        escuela_cct: ex.escuela_cct || currentPerfil?.escuela_cct,
+      });
+    });
+
+    // Para padres
+    const tituloPadre = tipo === 'guia_disponible'
+      ? `📚 Guía de estudio: ${ex.nombre}`
+      : `📅 Examen próximo: ${ex.nombre}`;
+    const cuerpoPadre = tipo === 'guia_disponible'
+      ? `El docente publicó la guía de estudio para el examen "${ex.nombre}" de ${ex.materia}. Apoya a tu hij@ a repasar.`
+      : `Su hij@ tiene examen de ${ex.materia} el ${fechaTexto}.${ex.temas_guia ? ' Temas: ' + ex.temas_guia : ''} Hay una guía de estudio disponible en el portal.`;
+
+    padreIds.forEach(uid => {
+      notificaciones.push({
+        usuario_id: uid,
+        tipo,
+        titulo: tituloPadre,
+        cuerpo: cuerpoPadre,
+        icono: tipo === 'guia_disponible' ? '📚' : '📅',
+        ref_tipo: 'examen',
+        ref_id: ex.id,
+        escuela_cct: ex.escuela_cct || currentPerfil?.escuela_cct,
+      });
+    });
+
+    if (notificaciones.length) {
+      await sb.from('notificaciones').insert(notificaciones);
+      // Marcar como notificado
+      await sb.from('examenes_docente').update({ notificado: true }).eq('id', ex.id);
+      const idx = _examenesData.findIndex(e => e.id === ex.id);
+      if (idx >= 0) _examenesData[idx].notificado = true;
+      console.log('[examenes] Notificaciones enviadas:', notificaciones.length);
+    }
+  } catch(e) {
+    console.warn('[examenes] notificaciones:', e.message);
+  }
 }
 // ══════════════════════════════════════════════════════════════
 // FIN MÓDULO GUÍAS DE ESTUDIO
@@ -10490,14 +10629,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Campos formativos NEM para cada materia
 const BLT_CAMPOS = {
-  'Matemáticas':      { campo:'Saberes y Pensamiento Científico', color:'#0369a1', colorL:'#e0f2fe' },
-  'Lengua Materna':   { campo:'Lenguajes', color:'#7c3aed', colorL:'#f5f3ff' },
-  'Ciencias Naturales':{ campo:'Saberes y Pensamiento Científico', color:'#0369a1', colorL:'#e0f2fe' },
-  'Historia':         { campo:'Ética, Naturaleza y Sociedades', color:'#059669', colorL:'#d1fae5' },
-  'Geografía':        { campo:'Ética, Naturaleza y Sociedades', color:'#059669', colorL:'#d1fae5' },
-  'Formación Cívica': { campo:'De lo Humano y lo Comunitario', color:'#d97706', colorL:'#fef3c7' },
-  'Ed. Física':       { campo:'De lo Humano y lo Comunitario', color:'#d97706', colorL:'#fef3c7' },
-  'Artes':            { campo:'Lenguajes', color:'#7c3aed', colorL:'#f5f3ff' },
+  // ── Lenguajes ────────────────────────────────────────────────────────
+  'Español':                        { campo:'Lenguajes', color:'#7c3aed', colorL:'#f5f3ff' },
+  'Lengua Materna':                 { campo:'Lenguajes', color:'#7c3aed', colorL:'#f5f3ff' },
+  'Lengua Materna (Español)':       { campo:'Lenguajes', color:'#7c3aed', colorL:'#f5f3ff' },
+  'Segunda Lengua (Inglés)':        { campo:'Lenguajes', color:'#7c3aed', colorL:'#f5f3ff' },
+  'Inglés':                         { campo:'Lenguajes', color:'#7c3aed', colorL:'#f5f3ff' },
+  'Artes':                          { campo:'Lenguajes', color:'#7c3aed', colorL:'#f5f3ff' },
+  'Educación Artística':            { campo:'Lenguajes', color:'#7c3aed', colorL:'#f5f3ff' },
+  // ── Saberes y Pensamiento Científico ─────────────────────────────────
+  'Matemáticas':                    { campo:'Saberes y Pensamiento Científico', color:'#0369a1', colorL:'#e0f2fe' },
+  'Ciencias Naturales':             { campo:'Saberes y Pensamiento Científico', color:'#0369a1', colorL:'#e0f2fe' },
+  'Ciencias Naturales y Tecnología':{ campo:'Saberes y Pensamiento Científico', color:'#0369a1', colorL:'#e0f2fe' },
+  'Conocimiento del Medio':         { campo:'Saberes y Pensamiento Científico', color:'#0369a1', colorL:'#e0f2fe' },
+  'Biología':                       { campo:'Saberes y Pensamiento Científico', color:'#0369a1', colorL:'#e0f2fe' },
+  'Física':                         { campo:'Saberes y Pensamiento Científico', color:'#0369a1', colorL:'#e0f2fe' },
+  'Química':                        { campo:'Saberes y Pensamiento Científico', color:'#0369a1', colorL:'#e0f2fe' },
+  'Tecnología':                     { campo:'Saberes y Pensamiento Científico', color:'#0369a1', colorL:'#e0f2fe' },
+  // ── Ética, Naturaleza y Sociedades ───────────────────────────────────
+  'Historia':                       { campo:'Ética, Naturaleza y Sociedades', color:'#059669', colorL:'#d1fae5' },
+  'Geografía':                      { campo:'Ética, Naturaleza y Sociedades', color:'#059669', colorL:'#d1fae5' },
+  'Formación Cívica y Ética':       { campo:'Ética, Naturaleza y Sociedades', color:'#059669', colorL:'#d1fae5' },
+  'Formación Cívica':               { campo:'Ética, Naturaleza y Sociedades', color:'#059669', colorL:'#d1fae5' },
+  'Vida Saludable':                 { campo:'Ética, Naturaleza y Sociedades', color:'#059669', colorL:'#d1fae5' },
+  // ── De lo Humano y lo Comunitario ────────────────────────────────────
+  'Educación Física':               { campo:'De lo Humano y lo Comunitario', color:'#d97706', colorL:'#fef3c7' },
+  'Ed. Física':                     { campo:'De lo Humano y lo Comunitario', color:'#d97706', colorL:'#fef3c7' },
+  'Tutoría':                        { campo:'De lo Humano y lo Comunitario', color:'#d97706', colorL:'#fef3c7' },
+  'Tutoría y Participación Social': { campo:'De lo Humano y lo Comunitario', color:'#d97706', colorL:'#fef3c7' },
+  'Proyecto de Aula':               { campo:'De lo Humano y lo Comunitario', color:'#d97706', colorL:'#fef3c7' },
 };
 
 const BLT_NIVEL_CFG = {
@@ -10671,14 +10831,40 @@ async function bltCambiarAlumno() {
         if (curpEl && alumnoRec.curp) curpEl.value = alumnoRec.curp;
 
         const { data: cals } = await sb.from('calificaciones')
-          .select('materia,trimestre,calificacion')
+          .select('materia,trimestre,calificacion,aspecto')
           .eq('alumno_id', alumnoRec.id)
           .eq('ciclo', window.CICLO_ACTIVO || '2025-2026');
         if (cals) {
-          const mapa = {};
+          // Agrupar por materia+trimestre y calcular promedio ponderado de aspectos
+          const grupos = {};
           cals.forEach(c => {
-            if (!mapa[c.materia]) mapa[c.materia] = {};
-            mapa[c.materia][c.trimestre] = parseFloat(c.calificacion);
+            const key = `${c.materia}|${c.trimestre}`;
+            if (!grupos[key]) grupos[key] = { materia: c.materia, trimestre: c.trimestre, vals: {} };
+            const v = parseFloat(c.calificacion);
+            if (!isNaN(v)) grupos[key].vals[c.aspecto || 'General'] = v;
+          });
+          const mapa = {};
+          Object.values(grupos).forEach(g => {
+            // Intentar promedio ponderado usando CAL_ASPECTOS o ASPECTOS_DEFAULT
+            const conf = (typeof CAL_ASPECTOS !== 'undefined' && CAL_ASPECTOS[g.materia]?.length)
+              ? CAL_ASPECTOS[g.materia]
+              : (typeof ASPECTOS_DEFAULT !== 'undefined' ? ASPECTOS_DEFAULT : []);
+            let suma = 0, totalPct = 0;
+            conf.forEach(asp => {
+              if (g.vals[asp.nombre] !== undefined) {
+                suma += g.vals[asp.nombre] * (asp.pct || 20);
+                totalPct += (asp.pct || 20);
+              }
+            });
+            if (!mapa[g.materia]) mapa[g.materia] = {};
+            if (totalPct > 0) {
+              mapa[g.materia][g.trimestre] = suma / totalPct;
+            } else {
+              // Fallback: promedio simple si los aspectos no coinciden
+              const vals = Object.values(g.vals);
+              mapa[g.materia][g.trimestre] = vals.length
+                ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+            }
           });
           window._calBoleta = mapa;
         }
@@ -10689,7 +10875,45 @@ async function bltCambiarAlumno() {
 }
 
 function updateBoleta(v) { bltActualizar(); }
-function imprimirBoleta() { window.print(); }
+function imprimirBoleta() {
+  // Construir datos desde el DOM del boleta-preview y abrir popup limpio
+  const g = id => document.getElementById(id)?.value?.trim() || '';
+  const s = id => document.getElementById(id)?.textContent?.trim() || '';
+
+  // Reconstruir campos desde _calBoleta (ya tiene promedios ponderados)
+  const calsDB = window._calBoleta || {};
+  const trimSel = parseInt(g('blt-trimestre-sel') || '1');
+  const campos = {};
+  Object.entries(calsDB).forEach(([materia, trims]) => {
+    const cal = trims[trimSel];
+    if (cal == null) return;
+    const cfg = BLT_CAMPOS[materia] || { campo: 'Otros' };
+    if (!campos[cfg.campo]) campos[cfg.campo] = [];
+    campos[cfg.campo].push({ materia, cal });
+  });
+
+  const datos = {
+    escuela:    g('blt-escuela') || s('blt-h-escuela'),
+    cct:        g('blt-cct')     || s('blt-h-cct').replace('CCT: ','').split(' ·')[0],
+    municipio:  g('blt-municipio'),
+    ciclo:      g('blt-ciclo')   || window.CICLO_ACTIVO || '2025-2026',
+    trimestre:  trimSel,
+    docente:    g('blt-docente') || s('blt-firma-docente'),
+    alumno:     g('blt-alumno-sel'),
+    curp:       g('blt-curp'),
+    grado:      g('blt-grado')   || s('blt-d-grado'),
+    folio:      g('blt-folio')   || s('blt-d-folio'),
+    obsGeneral: g('blt-observacion'),
+    campos,
+    asistencias: null, inasistJust: null, inasistInjust: null,
+  };
+
+  if (typeof _bltAbrirVentanaImpresion === 'function' && typeof _bltGenerarHTML === 'function') {
+    _bltAbrirVentanaImpresion(_bltGenerarHTML(datos), `Boleta ${datos.alumno} T${trimSel}`);
+  } else {
+    window.print();
+  }
+}
 
 // ── EXPORT PDF con html2canvas + jsPDF ──
 async function exportarBoletaPDF() {
@@ -11024,29 +11248,76 @@ function emailEnviar() {
 function sendMsg() { emailEnviarReply(); }  // alias legacy
 
 // CALENDARIO
+// Carga eventos de escuela desde Supabase y actualiza el arreglo local
+async function _cargarEventosEscuela() {
+  const cct = window.currentPerfil?.escuela_cct;
+  if (!window.sb || !cct) return;
+  try {
+    const { data } = await window.sb.from('eventos')
+      .select('fecha,tipo,label,titulo,descripcion')
+      .eq('escuela_cct', cct).eq('activo', true)
+      .order('fecha').limit(60);
+    if (data?.length) {
+      // Convertir al formato {dia, texto, tipo} que usa renderCalendario
+      eventos.length = 0;
+      data.forEach(ev => {
+        const d = new Date((ev.fecha || '') + 'T12:00:00');
+        if (isNaN(d)) return;
+        const mesEv = d.getMonth() + 1;
+        if (mesEv === calMes && d.getFullYear() === calAnio) {
+          eventos.push({ dia: d.getDate(), texto: ev.label || ev.titulo || '—', tipo: ev.tipo || 'evento' });
+        }
+      });
+      // Guardar todos para navegación de mes
+      window._calEventosTodos = data;
+    }
+  } catch(e) { console.warn('[Calendario]', e.message); }
+}
+
+function _actualizarEventosMes() {
+  const todos = window._calEventosTodos || [];
+  eventos.length = 0;
+  todos.forEach(ev => {
+    const d = new Date((ev.fecha || '') + 'T12:00:00');
+    if (isNaN(d)) return;
+    if (d.getMonth() + 1 === calMes && d.getFullYear() === calAnio) {
+      eventos.push({ dia: d.getDate(), texto: ev.label || ev.titulo || '—', tipo: ev.tipo || 'evento' });
+    }
+  });
+}
+
 function renderCalendario(){
   const meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  document.getElementById('mes-actual').textContent=`${meses[calMes-1]} ${calAnio}`;
+  const mesEl = document.getElementById('mes-actual');
+  if (mesEl) mesEl.textContent=`${meses[calMes-1]} ${calAnio}`;
   const primerDia=new Date(calAnio,calMes-1,1).getDay();
   const diasMes=new Date(calAnio,calMes,0).getDate();
+  const today = new Date();
   let html=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'].map(d=>`<div class="cal-day-header">${d}</div>`).join('');
   for(let i=0;i<primerDia;i++) html+=`<div class="cal-day otro-mes">${new Date(calAnio,calMes-1,-primerDia+i+1).getDate()}</div>`;
   for(let d=1;d<=diasMes;d++){
-    const hoy=d===9&&calMes===3&&calAnio===2026;
+    const hoy=d===today.getDate()&&calMes===today.getMonth()+1&&calAnio===today.getFullYear();
     const ev=eventos.find(e=>e.dia===d);
     html+=`<div class="cal-day ${hoy?'today':''} ${ev?'has-event':''}" title="${ev?ev.texto:''}">${d}</div>`;
   }
-  document.getElementById('cal-grid').innerHTML=html;
-  document.getElementById('eventos-mes').innerHTML=eventos.map(e=>`
+  const calGrid = document.getElementById('cal-grid');
+  if (calGrid) calGrid.innerHTML=html;
+  const evMes = document.getElementById('eventos-mes');
+  if (evMes) evMes.innerHTML=eventos.length ? eventos.map(e=>`
     <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--gris-10);">
       <div style="width:32px;height:32px;border-radius:8px;background:var(--verde-light);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:var(--verde);">${e.dia}</div>
       <div style="font-size:13px;">${e.texto}</div>
       <span class="chip chip-${e.tipo}" style="margin-left:auto;">${e.tipo}</span>
     </div>
-  `).join('');
+  `).join('') : '<div style="padding:20px;text-align:center;color:#94a3b8;font-size:13px;">Sin eventos este mes</div>';
+
+  // Cargar desde Supabase si aún no se ha hecho
+  if (!window._calEventosTodos) {
+    _cargarEventosEscuela().then(() => renderCalendario());
+  }
 }
-function mesAnterior(){if(calMes===1){calMes=12;calAnio--;}else calMes--;renderCalendario();}
-function mesSiguiente(){if(calMes===12){calMes=1;calAnio++;}else calMes++;renderCalendario();}
+function mesAnterior(){if(calMes===1){calMes=12;calAnio--;}else calMes--;_actualizarEventosMes();renderCalendario();}
+function mesSiguiente(){if(calMes===12){calMes=1;calAnio++;}else calMes++;_actualizarEventosMes();renderCalendario();}
 function nuevoEvento(){
   let modal = document.getElementById('modal-nuevo-evento');
   if (!modal) {

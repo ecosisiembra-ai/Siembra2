@@ -2930,6 +2930,9 @@ html, body { min-height:100vh; font-family:'Sora',sans-serif; overflow-x:hidden;
         <!-- Alert dinámica riesgo (legacy) -->
         <div id="dash-alerta-riesgo" style="display:none;" class="alert-banner alert-warn"></div>
 
+        <!-- ══ ALERTAS DEL SUBDIRECTOR/DIRECCIÓN ══ -->
+        <div id="dash-alertas-plantel" style="display:none;margin-bottom:16px;"></div>
+
         <!-- ══ BANNER DE AVISOS INSTITUCIONALES ══ -->
         <div id="dash-avisos-wrap" style="display:none;margin-bottom:16px;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
@@ -9499,6 +9502,8 @@ html, body { min-height:100vh; font-family:'Sora',sans-serif; overflow-x:hidden;
 
       <!-- Dashboard -->
       <div id="pref-p-dashboard" class="pref-page" style="display:block;">
+        <!-- Alertas del plantel -->
+        <div id="pref-alertas-plantel" style="display:none;"></div>
         <!-- Banner -->
         <div style="background:linear-gradient(135deg,#2d1b69,#4c1d95);border-radius:16px;padding:24px 28px;margin-bottom:22px;color:white;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;">
           <div>
@@ -10339,23 +10344,31 @@ html, body { min-height:100vh; font-family:'Sora',sans-serif; overflow-x:hidden;
         <!-- DASHBOARD -->
         <div class="subdir-page" id="subdir-p-dashboard">
           <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;">
-            <div style="background:white;border-radius:12px;border:1px solid #e2e8f0;padding:20px;text-align:center;"><div style="font-size:32px;font-weight:800;color:#1e40af;font-family:'Fraunces',serif;">372</div><div style="font-size:12px;color:#64748b;margin-top:4px;">Alumnos activos</div></div>
-            <div style="background:white;border-radius:12px;border:1px solid #e2e8f0;padding:20px;text-align:center;"><div style="font-size:32px;font-weight:800;color:#0d5c2f;font-family:'Fraunces',serif;">24</div><div style="font-size:12px;color:#64748b;margin-top:4px;">Docentes</div></div>
-            <div style="background:white;border-radius:12px;border:1px solid #e2e8f0;padding:20px;text-align:center;"><div style="font-size:32px;font-weight:800;color:#7c3aed;font-family:'Fraunces',serif;">3</div><div style="font-size:12px;color:#64748b;margin-top:4px;">Prefectos</div></div>
-            <div style="background:white;border-radius:12px;border:1px solid #e2e8f0;padding:20px;text-align:center;"><div style="font-size:32px;font-weight:800;color:#c2410c;font-family:'Fraunces',serif;">94%</div><div style="font-size:12px;color:#64748b;margin-top:4px;">Asistencia hoy</div></div>
+            <div style="background:white;border-radius:12px;border:1px solid #e2e8f0;padding:20px;text-align:center;"><div id="subdir-stat-alumnos" style="font-size:32px;font-weight:800;color:#1e40af;font-family:'Fraunces',serif;">—</div><div style="font-size:12px;color:#64748b;margin-top:4px;">Alumnos activos</div></div>
+            <div style="background:white;border-radius:12px;border:1px solid #e2e8f0;padding:20px;text-align:center;"><div id="subdir-stat-docentes" style="font-size:32px;font-weight:800;color:#0d5c2f;font-family:'Fraunces',serif;">—</div><div style="font-size:12px;color:#64748b;margin-top:4px;">Docentes</div></div>
+            <div style="background:white;border-radius:12px;border:1px solid #e2e8f0;padding:20px;text-align:center;"><div id="subdir-stat-grupos" style="font-size:32px;font-weight:800;color:#7c3aed;font-family:'Fraunces',serif;">—</div><div style="font-size:12px;color:#64748b;margin-top:4px;">Grupos</div></div>
+            <div style="background:white;border-radius:12px;border:1px solid #e2e8f0;padding:20px;text-align:center;"><div id="subdir-stat-incidencias" style="font-size:32px;font-weight:800;color:#c2410c;font-family:'Fraunces',serif;">—</div><div style="font-size:12px;color:#64748b;margin-top:4px;">Incidencias abiertas</div></div>
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
             <div style="background:white;border-radius:12px;border:1px solid #e2e8f0;padding:20px;">
               <div style="font-size:14px;font-weight:700;margin-bottom:14px;">⚠️ Alertas del día</div>
-              <div style="display:flex;flex-direction:column;gap:8px;">
-                <div style="padding:10px 14px;background:#fef9c3;border-radius:9px;border-left:3px solid #f59e0b;font-size:13px;"><strong>5 alumnos</strong> con más de 3 inasistencias esta semana</div>
-                <div style="padding:10px 14px;background:#fee2e2;border-radius:9px;border-left:3px solid #ef4444;font-size:13px;"><strong>2 incidencias</strong> de conducta sin resolver · 6°A y 5°B</div>
-                <div style="padding:10px 14px;background:#dbeafe;border-radius:9px;border-left:3px solid #3b82f6;font-size:13px;"><strong>Junta CTE</strong> este lunes 17 de Marzo · 8:00 am</div>
+              <div id="subdir-alertas-dashboard" style="display:flex;flex-direction:column;gap:8px;">
+                <div style="padding:10px 14px;background:#f1f5f9;border-radius:9px;font-size:13px;color:#94a3b8;">Cargando alertas…</div>
               </div>
             </div>
             <div style="background:white;border-radius:12px;border:1px solid #e2e8f0;padding:20px;">
               <div style="font-size:14px;font-weight:700;margin-bottom:14px;">📅 Próximos eventos</div>
               <div style="display:flex;flex-direction:column;gap:8px;" id="subdir-eventos"></div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;" id="subdir-charts-row">
+            <div style="background:white;border-radius:12px;border:1px solid #e2e8f0;padding:20px;">
+              <div style="font-size:13px;font-weight:700;color:#0f172a;margin-bottom:14px;">🏫 Composición del plantel</div>
+              <canvas id="subdir-chart-plantel" height="200"></canvas>
+            </div>
+            <div style="background:white;border-radius:12px;border:1px solid #e2e8f0;padding:20px;">
+              <div style="font-size:13px;font-weight:700;color:#0f172a;margin-bottom:14px;">📊 Incidencias por tipo</div>
+              <canvas id="subdir-chart-incidencias" height="200"></canvas>
             </div>
           </div>
         </div>
@@ -10896,8 +10909,11 @@ html, body { min-height:100vh; font-family:'Sora',sans-serif; overflow-x:hidden;
 
         <!-- ALERTAS CRUZADAS — Subdirector -->
         <div class="subdir-page" id="subdir-p-alertas-cruzadas" style="display:none;">
-          <div style="font-size:22px;font-weight:700;font-family:'Fraunces',serif;margin-bottom:4px;">🔔 Alertas del plantel</div>
-          <div style="font-size:13px;color:#64748b;margin-bottom:20px;">Incidencias registradas por prefectos, ausentismos y alertas académicas</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:4px;">
+            <div style="font-size:22px;font-weight:700;font-family:'Fraunces',serif;">🔔 Alertas del plantel</div>
+            <button onclick="subdirEnviarAlerta()" style="padding:10px 18px;background:#0d5c2f;color:white;border:none;border-radius:10px;font-family:'Sora',sans-serif;font-size:13px;font-weight:700;cursor:pointer;">📢 Enviar alerta</button>
+          </div>
+          <div style="font-size:13px;color:#64748b;margin-bottom:20px;">Envía alertas al plantel y visualiza incidencias registradas</div>
           <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;align-items:center;">
             <select id="alertas-filtro-tipo" onchange="subdirAlertasFiltrar()" style="padding:9px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-family:'Sora',sans-serif;font-size:13px;outline:none;background:white;">
               <option value="">Todos los tipos</option>

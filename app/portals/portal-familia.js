@@ -114,7 +114,7 @@ function padreNav(page) {
   const pbn = document.getElementById('pbn-' + page);
   if (pbn) pbn.classList.add('active');
   // Render
-  const renders = { dashboard: padreDash, calificaciones: padreCals, recuperaciones: padreRecuperaciones, asistencia: padreAsist, boleta: padreBoleta, tareas: padreTareas, mensajes: padreMensajes, insignias: padreInsignias, ia: padreIA };
+  const renders = { dashboard: padreDash, calificaciones: padreCals, recuperaciones: padreRecuperaciones, asistencia: padreAsist, boleta: padreBoleta, tareas: padreTareas, mensajes: padreMensajes, insignias: padreInsignias, ia: padreIA, examenes: padreExamenes };
   if (renders[page]) renders[page]();
   // Al entrar a IA: cargar plan guardado + resetear chat
   if (page === 'ia') {
@@ -1444,4 +1444,205 @@ function pmapTooltip(e, idx) {
   tt.style.top = (e.clientY - 80) + 'px';
   clearTimeout(window._mtt);
   window._mtt = setTimeout(function(){ tt.style.display='none'; }, 3000);
+}
+
+// ══════════════════════════════════════════════════════════════
+// MÓDULO: PRÓXIMOS EXÁMENES — Portal Familia
+// Muestra calendario de exámenes publicados por el docente,
+// guía de estudio y notificaciones
+// ══════════════════════════════════════════════════════════════
+async function padreExamenes() {
+  const cont = document.getElementById('p-examenes-lista');
+  if (!cont) return;
+
+  const alumno = window._alumnoActivoPadre || window._alumnosPadre?.[0];
+  if (!alumno) {
+    cont.innerHTML = '<div style="text-align:center;padding:32px;color:#94a3b8;">Sin alumno vinculado</div>';
+    return;
+  }
+
+  cont.innerHTML = '<div style="text-align:center;padding:20px;color:#94a3b8;">⏳ Cargando exámenes…</div>';
+
+  try {
+    // Obtener grupos del alumno
+    const { data: grupos } = await sb.from('alumnos_grupos')
+      .select('grupo_id')
+      .eq('alumno_id', alumno.id)
+      .eq('activo', true);
+
+    const grupoIds = (grupos || []).map(g => g.grupo_id).filter(Boolean);
+    if (!grupoIds.length) {
+      cont.innerHTML = '<div style="text-align:center;padding:32px;color:#94a3b8;">Sin grupos asignados</div>';
+      return;
+    }
+
+    const hoy = new Date().toISOString().split('T')[0];
+
+    // Traer exámenes visibles del grupo (próximos primero, luego recientes)
+    const { data: examenes } = await sb.from('examenes_docente')
+      .select('id, nombre, materia, trimestre, fecha_aplicacion, temas_guia, guia_ia, guia_pdf_url, promedio_grupo, total_alumnos, total_aprobados')
+      .in('grupo_id', grupoIds)
+      .eq('visible_alumnos', true)
+      .eq('ciclo', window.CICLO_ACTIVO || '2025-2026')
+      .order('fecha_aplicacion', { ascending: true });
+
+    const lista = examenes || [];
+
+    if (!lista.length) {
+      cont.innerHTML = `
+        <div style="text-align:center;padding:48px 20px;color:#94a3b8;">
+          <div style="font-size:40px;margin-bottom:12px;">📅</div>
+          <div style="font-weight:700;color:#0f172a;margin-bottom:6px;">Sin exámenes publicados</div>
+          <div style="font-size:13px;">El docente aún no ha publicado ningún examen para este ciclo</div>
+        </div>`;
+      return;
+    }
+
+    // Separar próximos y pasados
+    const proximos = lista.filter(e => !e.fecha_aplicacion || e.fecha_aplicacion >= hoy);
+    const pasados  = lista.filter(e => e.fecha_aplicacion && e.fecha_aplicacion < hoy);
+
+    function examenCard(ex, esPasado) {
+      const tieneGuia = !!(ex.guia_ia || ex.guia_pdf_url);
+      const fechaFmt = ex.fecha_aplicacion
+        ? new Date(ex.fecha_aplicacion + 'T12:00:00').toLocaleDateString('es-MX', { weekday:'long', day:'numeric', month:'long' })
+        : 'Fecha por confirmar';
+      const diasRestantes = ex.fecha_aplicacion
+        ? Math.ceil((new Date(ex.fecha_aplicacion) - new Date(hoy)) / 86400000)
+        : null;
+      const urgente = diasRestantes !== null && diasRestantes >= 0 && diasRestantes <= 3;
+      const borderColor = urgente ? '#f59e0b' : esPasado ? '#e2e8f0' : '#0d5c2f';
+      const bgHeader = urgente ? '#fffbeb' : esPasado ? '#f8fafc' : '#f0fdf4';
+
+      let diasBadge = '';
+      if (diasRestantes !== null && !esPasado) {
+        diasBadge = diasRestantes === 0
+          ? '<span style="background:#fee2e2;color:#dc2626;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700;">¡Hoy!</span>'
+          : diasRestantes === 1
+          ? '<span style="background:#fffbeb;color:#d97706;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700;">¡Mañana!</span>'
+          : `<span style="background:#f0fdf4;color:#166534;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700;">${diasRestantes} días</span>`;
+      }
+
+      let resultadoHtml = '';
+      if (esPasado && ex.promedio_grupo != null) {
+        const prom = ex.promedio_grupo;
+        const pct  = ex.total_alumnos ? Math.round(ex.total_aprobados / ex.total_alumnos * 100) : 0;
+        const col  = prom >= 7 ? '#15803d' : prom >= 6 ? '#d97706' : '#dc2626';
+        resultadoHtml = `
+          <div style="display:flex;gap:12px;margin-top:10px;padding-top:10px;border-top:1px solid #e2e8f0;">
+            <div style="text-align:center;padding:8px 14px;background:${prom>=7?'#f0fdf4':prom>=6?'#fffbeb':'#fef2f2'};border-radius:8px;">
+              <div style="font-size:20px;font-weight:800;color:${col};">${prom}</div>
+              <div style="font-size:10px;color:#64748b;font-weight:600;">PROMEDIO</div>
+            </div>
+            <div style="text-align:center;padding:8px 14px;background:#f8fafc;border-radius:8px;">
+              <div style="font-size:20px;font-weight:800;color:#1e40af;">${pct}%</div>
+              <div style="font-size:10px;color:#64748b;font-weight:600;">APROBARON</div>
+            </div>
+          </div>`;
+      }
+
+      return `
+        <div style="background:white;border:2px solid ${borderColor};border-radius:14px;overflow:hidden;margin-bottom:14px;">
+          <div style="background:${bgHeader};padding:14px 16px;border-bottom:1px solid ${borderColor}20;">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
+              <div>
+                <div style="font-size:15px;font-weight:700;color:#0f172a;">${ex.nombre}</div>
+                <div style="font-size:12px;color:#64748b;margin-top:2px;">${ex.materia} · Trimestre ${ex.trimestre}</div>
+              </div>
+              ${diasBadge}
+            </div>
+            <div style="margin-top:8px;font-size:12px;font-weight:600;color:${urgente?'#d97706':esPasado?'#94a3b8':'#0d5c2f'};">
+              📅 ${fechaFmt}
+            </div>
+          </div>
+          <div style="padding:14px 16px;">
+            ${ex.temas_guia ? `<div style="font-size:12px;color:#475569;margin-bottom:10px;"><strong style="color:#0f172a;">Temas:</strong> ${ex.temas_guia}</div>` : ''}
+            ${resultadoHtml}
+            ${tieneGuia ? `
+              <button onclick="padreVerGuiaExamen('${ex.id}')"
+                style="width:100%;margin-top:10px;padding:10px;background:linear-gradient(135deg,#7c3aed,#a855f7);color:white;border:none;border-radius:8px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;">
+                📚 Ver guía de estudio
+              </button>` : `
+              <div style="margin-top:8px;font-size:12px;color:#94a3b8;text-align:center;">
+                La guía de estudio aún no está disponible
+              </div>`}
+          </div>
+        </div>`;
+    }
+
+    let html = '';
+    if (proximos.length) {
+      html += `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#0d5c2f;margin-bottom:10px;">Próximos (${proximos.length})</div>`;
+      html += proximos.map(e => examenCard(e, false)).join('');
+    }
+    if (pasados.length) {
+      html += `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8;margin:16px 0 10px;">Anteriores</div>`;
+      html += pasados.slice(0, 5).reverse().map(e => examenCard(e, true)).join('');
+    }
+
+    cont.innerHTML = html;
+
+    // Marcar notificaciones de exámenes como leídas
+    try {
+      await sb.from('notificaciones')
+        .update({ leida: true })
+        .eq('usuario_id', (window._alumnoActivoPadre?.padre_id || currentPerfil?.id))
+        .in('tipo', ['examen_proximo', 'guia_disponible'])
+        .eq('leida', false);
+    } catch(e) { /* silent */ }
+
+  } catch(e) {
+    cont.innerHTML = '<div style="text-align:center;padding:20px;color:#ef4444;">Error al cargar exámenes</div>';
+    console.warn('[padreExamenes]', e.message);
+  }
+}
+
+async function padreVerGuiaExamen(exId) {
+  if (!sb) return;
+  try {
+    const { data: ex } = await sb.from('examenes_docente')
+      .select('nombre, materia, trimestre, fecha_aplicacion, temas_guia, guia_ia, guia_pdf_url')
+      .eq('id', exId)
+      .single();
+    if (!ex) return;
+
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:24px 16px;overflow-y:auto;';
+
+    const fechaFmt = ex.fecha_aplicacion
+      ? new Date(ex.fecha_aplicacion + 'T12:00:00').toLocaleDateString('es-MX', { weekday:'long', day:'numeric', month:'long', year:'numeric' })
+      : '';
+
+    const guiaHtml = ex.guia_ia
+      ? `<div style="background:#faf5ff;border:1.5px solid #ddd6fe;border-radius:10px;padding:16px;font-size:13px;color:#4c1d95;line-height:1.8;white-space:pre-wrap;">${ex.guia_ia}</div>`
+      : '';
+    const pdfHtml = ex.guia_pdf_url
+      ? `<a href="${ex.guia_pdf_url}" target="_blank" style="display:flex;align-items:center;gap:8px;padding:12px;background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;color:#1e40af;font-weight:700;font-size:13px;text-decoration:none;">
+           📄 Descargar guía PDF
+         </a>`
+      : '';
+
+    modal.innerHTML = `
+      <div style="background:white;border-radius:16px;width:100%;max-width:540px;overflow:hidden;margin:auto;">
+        <div style="background:linear-gradient(135deg,#7c3aed,#a855f7);padding:20px 24px;display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div style="font-size:17px;font-weight:700;color:white;font-family:'Fraunces',serif;">📚 Guía de estudio</div>
+            <div style="font-size:12px;color:rgba(255,255,255,.85);margin-top:2px;">${ex.nombre} · ${ex.materia} · T${ex.trimestre}</div>
+          </div>
+          <button id="guia-padre-close" style="background:rgba(255,255,255,.2);border:none;color:white;width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:15px;" aria-label="Cerrar">✕</button>
+        </div>
+        <div style="padding:20px;display:flex;flex-direction:column;gap:12px;">
+          ${fechaFmt ? `<div style="background:#f0fdf4;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:600;color:#0d5c2f;">📅 Examen: ${fechaFmt}</div>` : ''}
+          ${ex.temas_guia ? `<div style="background:#f8fafc;border-radius:10px;padding:10px 14px;font-size:13px;color:#475569;"><strong style="color:#0f172a;">Temas a estudiar:</strong> ${ex.temas_guia}</div>` : ''}
+          ${guiaHtml}
+          ${pdfHtml}
+        </div>
+      </div>`;
+
+    document.body.appendChild(modal);
+    document.getElementById('guia-padre-close').onclick = () => modal.remove();
+    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  } catch(e) {
+    console.warn('[padreVerGuia]', e.message);
+  }
 }

@@ -1,18 +1,16 @@
 // ── CARGA DE DATOS ──
-function saClaveEscuela(escuela = {}) {
-  return String(escuela.id || escuela.cct || '').trim();
-}
 
-function saUsuarioPerteneceAEscuela(usuario = {}, escuela = {}) {
-  const escId = String(escuela.id || '').trim();
-  const escCct = String(escuela.cct || '').trim();
-  const usrId = String(usuario.escuela_id || '').trim();
-  const usrCct = String(usuario.escuela_cct || '').trim();
-  return !!((escId && usrId === escId) || (escCct && usrCct === escCct));
+// ── Cache de métricas — evita re-fetches en cada visita al dashboard ──
+const _saCache = { metricas: null, ts: 0 };
+const _SA_CACHE_TTL = 5 * 60 * 1000; // 5 minutos
+
+function saClaveEscuela(escuela = {}) {
+  return String(escuela.cct || escuela.id || '').trim();
 }
 
 function saMetricasEscuela(escuela = {}) {
-  return escuelasMetricas[saClaveEscuela(escuela)] || { alumnos:0, docentes:0, grupos:0, usuarios:0 };
+  const cct = String(escuela.cct || '').trim();
+  return escuelasMetricas[cct] || { alumnos:0, docentes:0, grupos:0, usuarios:0 };
 }
 
 async function cargarTodo() {
@@ -23,13 +21,15 @@ async function cargarTodo() {
 }
 
 async function cargarEscuelas() {
-  if (!sb) { 
+  if (!sb) {
     escuelasData = [];
     renderTablaEscuelas([]);
-    return; 
+    return;
   }
   try {
-    const { data, error } = await sb.from('escuelas').select('id, cct, nombre, nivel, municipio, estado, zona_escolar, turno, ciclo_actual, activa, creado_en').order('creado_en', { ascending: false });
+    const { data, error } = await sb.from('escuelas')
+      .select('id, cct, nombre, nivel, municipio, estado, zona_escolar, turno, ciclo_actual, activa, created_at')
+      .order('created_at', { ascending: false });
     if (error) throw error;
     escuelasData = data || [];
     renderTablaEscuelas(escuelasData);
@@ -50,9 +50,9 @@ async function cargarUsuarios() {
       .limit(500);
     if (error) throw error;
 
-    // Enriquecer con nombre de escuela desde escuelasData
+    // Enriquecer con nombre de escuela desde escuelasData (sin join a BD)
     usuariosData = (data || []).map(u => {
-      const esc = escuelasData.find(e => e.id === u.escuela_id || e.cct === u.escuela_cct);
+      const esc = escuelasData.find(e => e.cct === u.escuela_cct || e.id === u.escuela_id);
       return { ...u, created_at: u.updated_at, escuelas: esc ? { nombre: esc.nombre } : null };
     });
     renderTablaUsuarios(usuariosData);
@@ -65,90 +65,124 @@ async function cargarUsuarios() {
 
 async function cargarMetricasEscuelas() {
   if (!sb) { escuelasMetricas = {}; return; }
+
+  // Usar cache si tiene menos de 5 minutos
+  const ahora = Date.now();
+  if (_saCache.metricas && (ahora - _saCache.ts) < _SA_CACHE_TTL) {
+    escuelasMetricas = _saCache.metricas;
+    _aplicarMetricasAEscuelas();
+    console.log('[SA] métricas desde cache');
+    return;
+  }
+
   try {
-    const [usuariosRes, alumnosRes, gruposRes] = await Promise.all([
-      sb.from('usuarios').select('id, rol, activo, escuela_id, escuela_cct').neq('rol', 'superadmin').eq('activo', true).limit(5000),
-      sb.from('alumnos').select('id, curp, nombre, activo, escuela_cct').eq('activo', true).limit(5000),
-      sb.from('grupos').select('id, activo, escuela_cct').eq('activo', true).limit(5000),
+    // ── Intentar RPC agregada (mucho más eficiente — conteos en servidor) ──
+    const { data: rpcData, error: rpcErr } = await sb.rpc('sa_metricas_escuelas');
+
+    if (!rpcErr && rpcData) {
+      // La RPC devuelve filas separadas para usuarios y grupos (UNION ALL)
+      // Consolidar por escuela_cct
+      const metricas = {};
+      for (const row of rpcData) {
+        const cct = String(row.escuela_cct || '').trim();
+        if (!cct) continue;
+        if (!metricas[cct]) metricas[cct] = { alumnos: 0, docentes: 0, usuarios: 0, grupos: 0 };
+        metricas[cct].alumnos  += Number(row.total_alumnos  || 0);
+        metricas[cct].docentes += Number(row.total_docentes || 0);
+        metricas[cct].usuarios += Number(row.total_usuarios || 0);
+        metricas[cct].grupos   += Number(row.total_grupos   || 0);
+      }
+      escuelasMetricas = metricas;
+      _saCache.metricas = metricas;
+      _saCache.ts = ahora;
+      _aplicarMetricasAEscuelas();
+      console.log('[SA] métricas via RPC:', Object.keys(metricas).length, 'escuelas');
+      return;
+    }
+
+    // ── Fallback: fetch directo si RPC no existe aún ──
+    console.warn('[SA] RPC sa_metricas_escuelas no disponible, usando fallback:', rpcErr?.message);
+    await _cargarMetricasFallback(ahora);
+
+  } catch(e) {
+    console.warn('[SA] cargarMetricasEscuelas:', e.message);
+    await _cargarMetricasFallback(ahora);
+  }
+}
+
+// Fallback: fetch directo (menos eficiente — solo hasta que se ejecute functions.sql)
+async function _cargarMetricasFallback(ts) {
+  try {
+    const [usuariosRes, gruposRes] = await Promise.all([
+      sb.from('usuarios').select('rol, escuela_cct, escuela_id').neq('rol', 'superadmin').eq('activo', true).limit(5000),
+      sb.from('grupos').select('escuela_cct').eq('activo', true).limit(5000),
     ]);
 
     const usuariosActivos = usuariosRes.data || [];
-    const alumnosTabla = alumnosRes.data || [];
     const gruposActivos = gruposRes.data || [];
     const metricas = {};
 
+    const ROLES_DOCENTE = new Set(['docente','tutor','coordinador','ts','prefecto','subdirector','director','admin']);
+
     escuelasData.forEach(esc => {
-      const key = saClaveEscuela(esc);
-      const usuariosEsc = usuariosActivos.filter(u => saUsuarioPerteneceAEscuela(u, esc));
-      const docentesEsc = usuariosEsc.filter(u => ['docente','tutor','coordinador','ts','prefecto','subdirector','director','admin'].includes(u.rol));
-      const alumnosUsuariosEsc = usuariosEsc.filter(u => u.rol === 'alumno');
-      const alumnosTablaEsc = alumnosTabla.filter(a => String(a.escuela_cct || '').trim() === String(esc.cct || '').trim());
-      const gruposEsc = gruposActivos.filter(g => String(g.escuela_cct || '').trim() === String(esc.cct || '').trim());
-      const alumnosUnicos = new Set();
-      alumnosUsuariosEsc.forEach(a => alumnosUnicos.add('u:' + String(a.id || '').trim()));
-      alumnosTablaEsc.forEach(a => alumnosUnicos.add('a:' + String(a.curp || a.id || a.nombre || '').trim()));
-      metricas[key] = {
-        usuarios: usuariosEsc.length,
-        docentes: docentesEsc.length,
-        alumnos: alumnosUnicos.size,
-        grupos: gruposEsc.length,
+      const cct = String(esc.cct || '').trim();
+      if (!cct) return;
+      const usrsEsc = usuariosActivos.filter(u =>
+        String(u.escuela_cct || '').trim() === cct || String(u.escuela_id || '').trim() === esc.id
+      );
+      metricas[cct] = {
+        usuarios: usrsEsc.length,
+        docentes: usrsEsc.filter(u => ROLES_DOCENTE.has(u.rol)).length,
+        alumnos:  usrsEsc.filter(u => u.rol === 'alumno').length,
+        grupos:   gruposActivos.filter(g => String(g.escuela_cct || '').trim() === cct).length,
       };
     });
 
     escuelasMetricas = metricas;
-    escuelasData = escuelasData.map(e => {
-      const met = metricas[saClaveEscuela(e)] || {};
-      return {
-        ...e,
-        total_usuarios: met.usuarios ?? e.total_usuarios ?? 0,
-        total_alumnos: met.alumnos ?? e.total_alumnos ?? 0,
-        total_docentes: met.docentes ?? e.total_docentes ?? 0,
-        total_grupos: met.grupos ?? e.total_grupos ?? 0,
-        stats_usuarios: met.usuarios ?? e.stats_usuarios ?? 0,
-        stats_alumnos: met.alumnos ?? e.stats_alumnos ?? 0,
-        stats_docentes: met.docentes ?? e.stats_docentes ?? 0,
-        stats_grupos: met.grupos ?? e.stats_grupos ?? 0,
-      };
-    });
-
-    for (const esc of escuelasData) {
-      const met = metricas[saClaveEscuela(esc)];
-      if (!esc?.id || !met) continue;
-      try {
-        await sb.from('escuelas').update({
-          total_usuarios: met.usuarios,
-          total_alumnos: met.alumnos,
-          total_docentes: met.docentes,
-          total_grupos: met.grupos,
-        }).eq('id', esc.id);
-      } catch(e1) {
-        try {
-          await sb.from('escuelas').update({
-            stats_usuarios: met.usuarios,
-            stats_alumnos: met.alumnos,
-            stats_docentes: met.docentes,
-            stats_grupos: met.grupos,
-          }).eq('id', esc.id);
-        } catch(e2) {
-          // Si la tabla aún no tiene columnas de resumen, seguir sin romper el dashboard.
-        }
-      }
-    }
+    _saCache.metricas = metricas;
+    _saCache.ts = ts;
+    _aplicarMetricasAEscuelas();
+    console.log('[SA] métricas via fallback:', Object.keys(metricas).length, 'escuelas');
   } catch(e) {
-    console.warn('[SA] metricas escuelas:', e.message);
+    console.warn('[SA] _cargarMetricasFallback:', e.message);
     escuelasMetricas = {};
   }
 }
 
+function _aplicarMetricasAEscuelas() {
+  escuelasData = escuelasData.map(e => {
+    const met = saMetricasEscuela(e);
+    return {
+      ...e,
+      total_usuarios: met.usuarios,
+      total_alumnos:  met.alumnos,
+      total_docentes: met.docentes,
+      total_grupos:   met.grupos,
+    };
+  });
+}
+
+// Invalidar cache manualmente (llamar cuando se crea/elimina usuario/grupo)
+function saInvalidarCache() {
+  _saCache.metricas = null;
+  _saCache.ts = 0;
+}
+window.saInvalidarCache = saInvalidarCache;
+
 async function cargarInvitaciones() {
   if (!sb) { invitacionesData = []; return; }
   try {
+    // Sin join a escuelas — ya tenemos escuelasData en memoria
     const { data, error } = await sb.from('invitaciones')
-      .select('*, escuelas(nombre)')
+      .select('id, rol, email_destino, escuela_id, escuela_cct, estado, created_at')
       .order('created_at', { ascending: false })
       .limit(100);
     if (error) throw error;
-    invitacionesData = data || [];
+    // Enriquecer con nombre de escuela desde memoria
+    invitacionesData = (data || []).map(inv => {
+      const esc = escuelasData.find(e => e.id === inv.escuela_id || e.cct === inv.escuela_cct);
+      return { ...inv, escuelas: esc ? { nombre: esc.nombre } : null };
+    });
   } catch(e) {
     console.warn('[SA] invitaciones:', e.message);
     invitacionesData = [];
@@ -158,12 +192,12 @@ async function cargarInvitaciones() {
 // ── RENDER DASHBOARD ──
 function renderDashboard() {
   const s = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-  const total      = escuelasData.length;
-  const activas    = escuelasData.filter(e => e.activa !== false).length;
-  const totalUsr   = escuelasData.reduce((acc, e) => acc + saMetricasEscuela(e).usuarios, 0);
-  const alumnos    = escuelasData.reduce((acc, e) => acc + saMetricasEscuela(e).alumnos, 0);
-  const docentes   = escuelasData.reduce((acc, e) => acc + saMetricasEscuela(e).docentes, 0);
-  const invPend    = invitacionesData.filter(i => i.estado === 'pendiente').length;
+  const total   = escuelasData.length;
+  const activas = escuelasData.filter(e => e.activa !== false).length;
+  const totalUsr  = escuelasData.reduce((acc, e) => acc + saMetricasEscuela(e).usuarios, 0);
+  const alumnos   = escuelasData.reduce((acc, e) => acc + saMetricasEscuela(e).alumnos, 0);
+  const docentes  = escuelasData.reduce((acc, e) => acc + saMetricasEscuela(e).docentes, 0);
+  const invPend   = invitacionesData.filter(i => i.estado === 'pendiente').length;
 
   s('stat-escuelas', total);
   s('stat-escuelas-d', `${activas} activas`);
@@ -172,13 +206,21 @@ function renderDashboard() {
   s('stat-docentes', docentes.toLocaleString());
   s('stat-invites', invPend);
 
-  // Evidencias hoy (intentar)
+  // Evidencias hoy — usar RPC si está disponible, evitar query ad-hoc
   s('stat-evidencias', '—');
   if (sb) {
-    const hoy = new Date().toISOString().split('T')[0];
-    sb.from('evidencias').select('id', { count: 'exact', head: true })
-      .gte('created_at', hoy)
-      .then(({ count }) => { if (count !== null) s('stat-evidencias', count); });
+    sb.rpc('sa_evidencias_hoy')
+      .then(({ data, error }) => {
+        if (!error && data != null) {
+          s('stat-evidencias', Number(data).toLocaleString());
+        } else {
+          // Fallback
+          const hoy = new Date().toISOString().split('T')[0];
+          sb.from('evidencias').select('id', { count: 'exact', head: true })
+            .gte('created_at', hoy)
+            .then(({ count }) => { if (count != null) s('stat-evidencias', count); });
+        }
+      });
   }
 
   // Nav badges
@@ -196,13 +238,11 @@ function renderDashboard() {
     listaEl.innerHTML = escuelasData.slice(0, 8).map(e => {
       const activo = e.activa !== false;
       const met = saMetricasEscuela(e);
-      const pct    = 0;
       return `<div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--border);">
         <div style="flex:1;">
           <div style="font-size:13px;font-weight:500;">${e.nombre || e.cct}</div>
           <div style="font-family:var(--mono);font-size:11px;color:var(--text3);">${e.cct || '-'} - ${e.municipio || '-'}</div>
-          <div style="font-size:11px;color:var(--text2);margin-top:4px;">${met.alumnos} alumnos - ${met.docentes} docentes - ${met.grupos} grupos</div>
-          <div class="meter"><div class="meter-fill" style="width:${pct}%;background:${pct>80?'var(--amber)':'var(--green)'};"></div></div>
+          <div style="font-size:11px;color:var(--text2);margin-top:4px;">${met.alumnos} alumnos · ${met.docentes} docentes · ${met.grupos} grupos</div>
         </div>
         <span class="badge ${activo ? 'badge-green' : 'badge-gray'}">
           <span class="badge-dot2"></span>${activo ? 'activa' : 'inactiva'}
@@ -217,10 +257,10 @@ function renderDashboard() {
     const eventos = [
       ...escuelasData.slice(0,3).map(e => ({
         tipo:'green', texto:`Escuela <strong>${e.nombre||e.cct}</strong> registrada`,
-        tiempo: e.creado_en ? new Date(e.creado_en).toLocaleDateString('es-MX') : 'Reciente'
+        tiempo: e.created_at ? new Date(e.created_at).toLocaleDateString('es-MX') : 'Reciente'
       })),
       ...invitacionesData.slice(0,3).map(i => ({
-        tipo:'amber', texto:`Invitacion para rol <strong>${i.rol}</strong> generada`,
+        tipo:'amber', texto:`Invitación para rol <strong>${i.rol}</strong> generada`,
         tiempo: i.created_at ? new Date(i.created_at).toLocaleDateString('es-MX') : 'Reciente'
       })),
     ].slice(0,6);

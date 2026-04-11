@@ -253,6 +253,8 @@ create table if not exists public.alertas (
   alumno_id uuid references public.usuarios(id) on delete cascade,
   docente_id uuid references public.usuarios(id) on delete set null,
   destinatario_id uuid references public.usuarios(id) on delete set null,
+  destinatario_rol text,       -- null = todos, o 'docente','prefecto','coordinador', etc.
+  remitente_id uuid references public.usuarios(id) on delete set null,
   tipo text,
   origen text,
   mensaje text,

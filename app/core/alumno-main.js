@@ -333,6 +333,21 @@ let _exAlFiltro = 'proximos';
 
 async function exAlInit() {
   await exAlCargar();
+  exAlCargarNotificaciones();
+}
+
+// Marca como leídas las notificaciones de examen cuando el alumno entra a la sección
+async function exAlCargarNotificaciones() {
+  if (!sb || !currentPerfil?.id) return;
+  try {
+    await sb.from('notificaciones')
+      .update({ leida: true })
+      .eq('usuario_id', currentPerfil.id)
+      .in('tipo', ['examen_proximo', 'guia_disponible'])
+      .eq('leida', false);
+    // Actualizar badge global de notificaciones si existe
+    if (typeof alumnoActualizarBadgeNotif === 'function') alumnoActualizarBadgeNotif();
+  } catch(e) { /* silent */ }
 }
 
 async function exAlCargar() {
@@ -552,6 +567,23 @@ function initApp() {
     renderJardin();
     renderMaterias();
   }
+  // Badge de exámenes próximos en nav
+  alumnoActualizarBadgeNotif();
+}
+
+async function alumnoActualizarBadgeNotif() {
+  if (!sb || !currentPerfil?.id) return;
+  try {
+    const { count } = await sb.from('notificaciones')
+      .select('id', { count: 'exact', head: true })
+      .eq('usuario_id', currentPerfil.id)
+      .eq('leida', false);
+    const badge = document.getElementById('examenes-nav-badge');
+    if (badge) {
+      if (count && count > 0) { badge.textContent = count; badge.style.display = 'inline-block'; }
+      else { badge.style.display = 'none'; }
+    }
+  } catch(e) { /* silent */ }
 }
 
 function setGreeting() {
