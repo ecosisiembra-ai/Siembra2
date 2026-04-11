@@ -1605,43 +1605,12 @@ async function padreVerGuiaExamen(exId) {
       .eq('id', exId)
       .single();
     if (!ex) return;
-
-    const modal = document.createElement('div');
-    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:24px 16px;overflow-y:auto;';
-
-    const fechaFmt = ex.fecha_aplicacion
-      ? new Date(ex.fecha_aplicacion + 'T12:00:00').toLocaleDateString('es-MX', { weekday:'long', day:'numeric', month:'long', year:'numeric' })
-      : '';
-
-    const guiaHtml = ex.guia_ia
-      ? `<div style="background:#faf5ff;border:1.5px solid #ddd6fe;border-radius:10px;padding:16px;font-size:13px;color:#4c1d95;line-height:1.8;white-space:pre-wrap;">${ex.guia_ia}</div>`
-      : '';
-    const pdfHtml = ex.guia_pdf_url
-      ? `<a href="${ex.guia_pdf_url}" target="_blank" style="display:flex;align-items:center;gap:8px;padding:12px;background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;color:#1e40af;font-weight:700;font-size:13px;text-decoration:none;">
-           📄 Descargar guía PDF
-         </a>`
-      : '';
-
-    modal.innerHTML = `
-      <div style="background:white;border-radius:16px;width:100%;max-width:540px;overflow:hidden;margin:auto;">
-        <div style="background:linear-gradient(135deg,#7c3aed,#a855f7);padding:20px 24px;display:flex;align-items:center;justify-content:space-between;">
-          <div>
-            <div style="font-size:17px;font-weight:700;color:white;font-family:'Fraunces',serif;">📚 Guía de estudio</div>
-            <div style="font-size:12px;color:rgba(255,255,255,.85);margin-top:2px;">${ex.nombre} · ${ex.materia} · T${ex.trimestre}</div>
-          </div>
-          <button id="guia-padre-close" style="background:rgba(255,255,255,.2);border:none;color:white;width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:15px;" aria-label="Cerrar">✕</button>
-        </div>
-        <div style="padding:20px;display:flex;flex-direction:column;gap:12px;">
-          ${fechaFmt ? `<div style="background:#f0fdf4;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:600;color:#0d5c2f;">📅 Examen: ${fechaFmt}</div>` : ''}
-          ${ex.temas_guia ? `<div style="background:#f8fafc;border-radius:10px;padding:10px 14px;font-size:13px;color:#475569;"><strong style="color:#0f172a;">Temas a estudiar:</strong> ${ex.temas_guia}</div>` : ''}
-          ${guiaHtml}
-          ${pdfHtml}
-        </div>
-      </div>`;
-
-    document.body.appendChild(modal);
-    document.getElementById('guia-padre-close').onclick = () => modal.remove();
-    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+    // Usar el mismo modal compartido que el alumno
+    if (typeof abrirModalGuiaExamen === 'function') {
+      abrirModalGuiaExamen(exId, ex.nombre, ex.materia, ex.trimestre,
+        ex.fecha_aplicacion || '', ex.temas_guia || '',
+        ex.guia_ia || '', ex.guia_pdf_url || '');
+    }
   } catch(e) {
     console.warn('[padreVerGuia]', e.message);
   }

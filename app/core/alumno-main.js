@@ -429,12 +429,12 @@ function exAlRender() {
       <div style="font-size:12px;color:${color};font-weight:700;margin-bottom:8px;">📅 ${fechaStr}</div>
       ${ex.descripcion ? `<div style="font-size:12px;color:#475569;background:white;border-radius:8px;padding:8px 10px;margin-bottom:10px;">${ex.descripcion}</div>` : ''}
       ${ex.temas_guia ? `<div style="font-size:12px;color:#475569;margin-bottom:10px;"><strong>📌 Temas:</strong> ${ex.temas_guia}</div>` : ''}
-      ${tieneGuia ? `<details style="margin-top:6px;"><summary style="cursor:pointer;font-size:12px;font-weight:800;color:#7c3aed;display:flex;align-items:center;gap:6px;">✨ Ver guía de estudio</summary>
-        <div style="margin-top:10px;">
-          ${ex.guia_pdf_url ? `<a href="${ex.guia_pdf_url}" target="_blank" style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#1e40af;color:white;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;margin-bottom:8px;">📄 Descargar PDF</a>` : ''}
-          ${ex.guia_ia ? `<div style="background:#faf5ff;border:1px solid #ddd6fe;border-radius:10px;padding:12px;font-size:12px;color:#4c1d95;line-height:1.7;white-space:pre-wrap;max-height:320px;overflow-y:auto;">${ex.guia_ia}</div>` : ''}
-        </div>
-      </details>` : `<div style="font-size:11px;color:#94a3b8;font-style:italic;">El docente aún no ha publicado guía de estudio</div>`}
+      ${tieneGuia
+        ? `<button onclick="abrirModalGuiaExamen('${ex.id}','${(ex.nombre||'').replace(/'/g,"\\'")}','${ex.materia||''}',${ex.trimestre||1},'${ex.fecha_aplicacion||''}','${(ex.temas_guia||'').replace(/'/g,"\\'")}','${(ex.guia_ia||'').replace(/\n/g,'\\n').replace(/'/g,"\\'")}','${ex.guia_pdf_url||''}')"
+            style="width:100%;margin-top:8px;padding:10px;background:linear-gradient(135deg,#7c3aed,#a855f7);color:white;border:none;border-radius:8px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;">
+            📚 Ver guía de estudio
+          </button>`
+        : `<div style="font-size:11px;color:#94a3b8;font-style:italic;margin-top:6px;">El docente aún no ha publicado guía de estudio</div>`}
     </div>`;
   }).join('');
 }
@@ -570,6 +570,44 @@ function initApp() {
   // Badge de exámenes próximos en nav
   alumnoActualizarBadgeNotif();
 }
+
+// ── Modal de guía de estudio — igual para alumno y padre ─────────────
+function abrirModalGuiaExamen(id, nombre, materia, trimestre, fechaApl, temas, guiaIa, guiaPdf) {
+  document.getElementById('modal-guia-examen-shared')?.remove();
+  const fechaFmt = fechaApl
+    ? new Date(fechaApl + 'T12:00:00').toLocaleDateString('es-MX', { weekday:'long', day:'numeric', month:'long', year:'numeric' })
+    : '';
+  const guiaHtml = guiaIa
+    ? `<div style="background:#faf5ff;border:1.5px solid #ddd6fe;border-radius:10px;padding:16px;font-size:13px;color:#4c1d95;line-height:1.8;white-space:pre-wrap;max-height:360px;overflow-y:auto;">${guiaIa}</div>`
+    : '';
+  const pdfHtml = guiaPdf
+    ? `<a href="${guiaPdf}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;padding:12px;background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;color:#1e40af;font-weight:700;font-size:13px;text-decoration:none;">📄 Descargar guía PDF</a>`
+    : '';
+  const modal = document.createElement('div');
+  modal.id = 'modal-guia-examen-shared';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:24px 16px;overflow-y:auto;';
+  modal.innerHTML = `
+    <div style="background:white;border-radius:16px;width:100%;max-width:540px;overflow:hidden;margin:auto;">
+      <div style="background:linear-gradient(135deg,#7c3aed,#a855f7);padding:20px 24px;display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <div style="font-size:17px;font-weight:700;color:white;font-family:'Fraunces',serif;">📚 Guía de estudio</div>
+          <div style="font-size:12px;color:rgba(255,255,255,.85);margin-top:2px;">${nombre} · ${materia} · T${trimestre}</div>
+        </div>
+        <button id="guia-shared-close" style="background:rgba(255,255,255,.2);border:none;color:white;width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:15px;" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="padding:20px;display:flex;flex-direction:column;gap:12px;">
+        ${fechaFmt ? `<div style="background:#f0fdf4;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:600;color:#0d5c2f;">📅 Examen: ${fechaFmt}</div>` : ''}
+        ${temas ? `<div style="background:#f8fafc;border-radius:10px;padding:10px 14px;font-size:13px;color:#475569;"><strong style="color:#0f172a;">Temas a estudiar:</strong> ${temas}</div>` : ''}
+        ${guiaHtml}
+        ${pdfHtml}
+        ${!guiaIa && !guiaPdf ? '<div style="text-align:center;padding:20px;color:#94a3b8;font-size:13px;">El docente aún no ha agregado contenido a la guía</div>' : ''}
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  document.getElementById('guia-shared-close').onclick = () => modal.remove();
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+}
+window.abrirModalGuiaExamen = abrirModalGuiaExamen;
 
 async function alumnoActualizarBadgeNotif() {
   if (!sb || !currentPerfil?.id) return;
