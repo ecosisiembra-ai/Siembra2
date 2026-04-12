@@ -275,6 +275,9 @@ html,body{min-height:100vh;font-family:var(--sans);background:var(--bg);color:va
 
 /* ── TABLE ── */
 .tbl-wrap{overflow-x:auto;}
+.det-tab{background:none;border:none;border-bottom:2px solid transparent;padding:8px 16px;font-size:13px;font-family:var(--sans);color:var(--text3);cursor:pointer;margin-bottom:-1px;}
+.det-tab:hover{color:var(--text);}
+.det-tab.active{color:var(--green);border-bottom-color:var(--green);font-weight:600;}
 table.tbl {
   width:100%;border-collapse:collapse;font-size:13px;
 }
@@ -666,6 +669,126 @@ table.tbl tr:hover td{background:var(--bg3);}
                 <tr><td colspan="8" style="color:var(--text3);text-align:center;padding:32px;">Cargando…</td></tr>
               </tbody>
             </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ DETALLE ESCUELA ══ -->
+      <div class="page" id="page-escuela-detalle">
+        <div class="page-header">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <button class="btn btn-outline btn-sm" onclick="navTo('escuelas')" style="font-size:18px;padding:4px 10px;">←</button>
+            <div>
+              <div class="page-title" id="det-escuela-nombre">Escuela</div>
+              <div class="page-sub" id="det-escuela-sub">CCT · Nivel · Plan</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-primary btn-sm" onclick="detAbrirInvitar()">＋ Invitar usuario</button>
+            <button class="btn btn-outline btn-sm" onclick="detEditarEscuela()">✏️ Editar escuela</button>
+          </div>
+        </div>
+
+        <!-- Stats rápidas -->
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
+          <div class="panel" style="padding:14px 16px;text-align:center;">
+            <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">ALUMNOS</div>
+            <div style="font-size:26px;font-weight:700;color:var(--text);" id="det-stat-alumnos">—</div>
+          </div>
+          <div class="panel" style="padding:14px 16px;text-align:center;">
+            <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">DOCENTES</div>
+            <div style="font-size:26px;font-weight:700;color:var(--text);" id="det-stat-docentes">—</div>
+          </div>
+          <div class="panel" style="padding:14px 16px;text-align:center;">
+            <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">GRUPOS</div>
+            <div style="font-size:26px;font-weight:700;color:var(--text);" id="det-stat-grupos">—</div>
+          </div>
+          <div class="panel" style="padding:14px 16px;text-align:center;">
+            <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">STAFF</div>
+            <div style="font-size:26px;font-weight:700;color:var(--text);" id="det-stat-staff">—</div>
+          </div>
+        </div>
+
+        <!-- Tabs -->
+        <div style="display:flex;gap:4px;margin-bottom:12px;border-bottom:1px solid var(--border);padding-bottom:0;">
+          <button class="det-tab active" id="det-tab-staff" onclick="detSwitchTab('staff')">Staff y directivos</button>
+          <button class="det-tab" id="det-tab-alumnos" onclick="detSwitchTab('alumnos')">Alumnos</button>
+          <button class="det-tab" id="det-tab-invitaciones" onclick="detSwitchTab('invitaciones')">Invitaciones</button>
+        </div>
+
+        <!-- Tab: Staff -->
+        <div id="det-panel-staff" class="panel">
+          <div class="tbl-wrap">
+            <table class="tbl">
+              <thead>
+                <tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Creado</th><th>Estado</th><th></th></tr>
+              </thead>
+              <tbody id="det-staff-tbody">
+                <tr><td colspan="6" style="color:var(--text3);text-align:center;padding:32px;">Cargando…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Tab: Alumnos -->
+        <div id="det-panel-alumnos" class="panel" style="display:none;">
+          <div class="tbl-wrap">
+            <table class="tbl">
+              <thead>
+                <tr><th>Nombre</th><th>Email</th><th>Grupo</th><th>Creado</th><th>Estado</th><th></th></tr>
+              </thead>
+              <tbody id="det-alumnos-tbody">
+                <tr><td colspan="6" style="color:var(--text3);text-align:center;padding:32px;">Cargando…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Tab: Invitaciones pendientes -->
+        <div id="det-panel-invitaciones" class="panel" style="display:none;">
+          <div class="tbl-wrap">
+            <table class="tbl">
+              <thead>
+                <tr><th>Email destino</th><th>Rol</th><th>Token</th><th>Expira</th><th>Estado</th><th></th></tr>
+              </thead>
+              <tbody id="det-inv-tbody">
+                <tr><td colspan="6" style="color:var(--text3);text-align:center;padding:32px;">Cargando…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ MODAL INVITAR USUARIO DESDE DETALLE ══ -->
+      <div id="modal-det-invitar" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
+        <div style="background:var(--bg2);border-radius:var(--r2);padding:24px;width:420px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,.3);">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <div style="font-size:16px;font-weight:600;color:var(--text);">Invitar usuario a <span id="det-inv-escuela-nombre" style="color:var(--green);">escuela</span></div>
+            <button onclick="cerrarModalDetInvitar()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3);">×</button>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:12px;">
+            <div>
+              <label style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;">Nombre</label>
+              <input type="text" id="det-inv-nombre" placeholder="Nombre completo" style="width:100%;margin-top:4px;padding:9px 12px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--sans);font-size:13px;outline:none;box-sizing:border-box;">
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;">Email</label>
+              <input type="email" id="det-inv-email" placeholder="correo@ejemplo.com" style="width:100%;margin-top:4px;padding:9px 12px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--sans);font-size:13px;outline:none;box-sizing:border-box;">
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;">Rol</label>
+              <select id="det-inv-rol" style="width:100%;margin-top:4px;padding:9px 12px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--sans);font-size:13px;outline:none;box-sizing:border-box;">
+                <option value="director">Director/a</option>
+                <option value="admin">Admin escolar</option>
+                <option value="docente">Docente</option>
+                <option value="subdirector">Subdirector/a</option>
+                <option value="coordinador">Coordinador/a</option>
+                <option value="prefecto">Prefecto/a</option>
+                <option value="ts">Trabajador/a Social</option>
+              </select>
+            </div>
+            <button class="btn btn-primary" onclick="detEnviarInvitacion()" style="margin-top:4px;">Generar invitación y enviar →</button>
+            <div id="det-inv-resultado" style="display:none;font-size:13px;padding:8px 12px;border-radius:var(--r);"></div>
           </div>
         </div>
       </div>
@@ -1392,6 +1515,281 @@ if (window.SiembraSaAuth) {
     doLogin: window.SiembraSaAuth.doLogin,
     doLogout: window.SiembraSaAuth.doLogout,
   });
+}
+
+// ══════════════════════════════════════════════
+// DETALLE DE ESCUELA
+// ══════════════════════════════════════════════
+let _detEscuelaActual = null;
+let _detUsuariosEscuela = [];
+let _detInvitacionesEscuela = [];
+
+async function verDetalleEscuela(id) {
+  _detEscuelaActual = escuelasData.find(e => e.id === id);
+  if (!_detEscuelaActual) return;
+  const e = _detEscuelaActual;
+
+  document.getElementById('det-escuela-nombre').textContent = e.nombre || e.cct;
+  document.getElementById('det-escuela-sub').textContent =
+    `CCT: ${e.cct || '—'} · ${e.nivel || '—'} · Plan ${e.plan_tipo || 'base'} · ${e.municipio || '—'}, ${e.estado || '—'}`;
+
+  // Activar página
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-escuela-detalle').classList.add('active');
+  paginaActual = 'escuela-detalle';
+
+  detSwitchTab('staff');
+  await detCargarDatos();
+}
+
+async function detCargarDatos() {
+  if (!sb || !_detEscuelaActual) return;
+  const cct = _detEscuelaActual.cct;
+  const escId = _detEscuelaActual.id;
+
+  // Usuarios de la escuela
+  const { data: usuarios } = await sb.from('usuarios')
+    .select('*')
+    .eq('escuela_cct', cct)
+    .order('created_at', { ascending: false });
+  _detUsuariosEscuela = usuarios || [];
+
+  // Invitaciones de la escuela
+  const { data: invs } = await sb.from('invitaciones')
+    .select('*')
+    .eq('escuela_id', escId)
+    .order('created_at', { ascending: false });
+  _detInvitacionesEscuela = invs || [];
+
+  // Stats
+  const alumnos  = _detUsuariosEscuela.filter(u => u.rol === 'alumno').length;
+  const docentes = _detUsuariosEscuela.filter(u => u.rol === 'docente').length;
+  const staff    = _detUsuariosEscuela.filter(u => ['director','admin','subdirector','coordinador','prefecto','ts'].includes(u.rol)).length;
+
+  // Grupos
+  let grupos = 0;
+  if (sb) {
+    const { count } = await sb.from('grupos').select('id', { count: 'exact', head: true }).eq('escuela_cct', cct);
+    grupos = count || 0;
+  }
+
+  document.getElementById('det-stat-alumnos').textContent  = alumnos;
+  document.getElementById('det-stat-docentes').textContent = docentes;
+  document.getElementById('det-stat-grupos').textContent   = grupos;
+  document.getElementById('det-stat-staff').textContent    = staff;
+
+  detRenderStaff();
+  detRenderAlumnos();
+  detRenderInvitaciones();
+}
+
+function detRenderStaff() {
+  const tb = document.getElementById('det-staff-tbody');
+  const rolesStaff = ['superadmin','director','admin','subdirector','coordinador','prefecto','ts','docente'];
+  const lista = _detUsuariosEscuela.filter(u => rolesStaff.includes(u.rol));
+  const rolBadge = { director:'badge-blue', admin:'badge-blue', docente:'badge-green', superadmin:'badge-red', subdirector:'badge-blue', coordinador:'badge-green', prefecto:'badge-gray', ts:'badge-gray' };
+  if (!lista.length) {
+    tb.innerHTML = `<tr><td colspan="6" style="color:var(--text3);text-align:center;padding:32px;">Sin usuarios de staff registrados</td></tr>`;
+    return;
+  }
+  tb.innerHTML = lista.map(u => {
+    const fecha = u.created_at ? new Date(u.created_at).toLocaleDateString('es-MX',{day:'numeric',month:'short',year:'numeric'}) : '—';
+    return `<tr>
+      <td style="font-weight:500;">${u.nombre || '—'}</td>
+      <td style="font-size:12px;color:var(--text2);">${u.email || '—'}</td>
+      <td><span class="badge ${rolBadge[u.rol]||'badge-gray'}">${u.rol}</span></td>
+      <td style="font-size:12px;color:var(--text3);">${fecha}</td>
+      <td><span class="badge ${u.activo!==false?'badge-green':'badge-gray'}"><span class="badge-dot2"></span>${u.activo!==false?'activo':'inactivo'}</span></td>
+      <td>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-outline btn-sm" onclick="detCambiarRol('${u.id}','${u.rol}','${(u.nombre||u.email||'').replace(/'/g,'')}')">Rol</button>
+          <button class="btn btn-danger btn-sm" onclick="detEliminarUsuario('${u.id}','${(u.email||'').replace(/'/g,'')}')">🗑️</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function detRenderAlumnos() {
+  const tb = document.getElementById('det-alumnos-tbody');
+  const lista = _detUsuariosEscuela.filter(u => u.rol === 'alumno');
+  if (!lista.length) {
+    tb.innerHTML = `<tr><td colspan="6" style="color:var(--text3);text-align:center;padding:32px;">Sin alumnos registrados aún</td></tr>`;
+    return;
+  }
+  tb.innerHTML = lista.map(u => {
+    const fecha = u.created_at ? new Date(u.created_at).toLocaleDateString('es-MX',{day:'numeric',month:'short'}) : '—';
+    return `<tr>
+      <td style="font-weight:500;">${u.nombre || '—'} ${u.apellido_p||''} ${u.apellido_m||''}</td>
+      <td style="font-size:12px;color:var(--text2);">${u.email || '—'}</td>
+      <td style="font-size:12px;">${u.grupo_tutoria || '—'}</td>
+      <td style="font-size:12px;color:var(--text3);">${fecha}</td>
+      <td><span class="badge ${u.activo!==false?'badge-green':'badge-gray'}"><span class="badge-dot2"></span>${u.activo!==false?'activo':'inactivo'}</span></td>
+      <td><button class="btn btn-danger btn-sm" onclick="detEliminarUsuario('${u.id}','${(u.email||'').replace(/'/g,'')}')">🗑️</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function detRenderInvitaciones() {
+  const tb = document.getElementById('det-inv-tbody');
+  if (!_detInvitacionesEscuela.length) {
+    tb.innerHTML = `<tr><td colspan="6" style="color:var(--text3);text-align:center;padding:32px;">Sin invitaciones generadas</td></tr>`;
+    return;
+  }
+  tb.innerHTML = _detInvitacionesEscuela.map(i => {
+    const exp = i.expira_at ? new Date(i.expira_at).toLocaleDateString('es-MX',{day:'numeric',month:'short',year:'numeric'}) : '—';
+    const expirado = i.expira_at && new Date(i.expira_at) < new Date();
+    const usado = i.estado === 'usado' || i.estado === 'usada';
+    const badge = usado ? 'badge-gray' : expirado ? 'badge-red' : 'badge-green';
+    const label = usado ? 'Usado' : expirado ? 'Expirado' : 'Pendiente';
+    return `<tr>
+      <td style="font-size:12px;">${i.email_destino || '—'}</td>
+      <td><span class="badge badge-blue">${i.rol || '—'}</span></td>
+      <td class="tbl-mono" style="font-size:11px;cursor:pointer;" onclick="copiarTexto('${i.token}')" title="Clic para copiar">${(i.token||'').slice(0,18)}…</td>
+      <td style="font-size:12px;color:var(--text3);">${exp}</td>
+      <td><span class="badge ${badge}"><span class="badge-dot2"></span>${label}</span></td>
+      <td>
+        <div style="display:flex;gap:6px;">
+          ${!usado && !expirado ? `<button class="btn btn-outline btn-sm" onclick="detReenviarInv('${i.id}')">Reenviar</button>` : ''}
+          <button class="btn btn-danger btn-sm" onclick="detEliminarInv('${i.id}')">🗑️</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function detSwitchTab(tab) {
+  ['staff','alumnos','invitaciones'].forEach(t => {
+    document.getElementById('det-tab-' + t)?.classList.toggle('active', t === tab);
+    const panel = document.getElementById('det-panel-' + t);
+    if (panel) panel.style.display = t === tab ? 'block' : 'none';
+  });
+}
+
+function detEditarEscuela() {
+  if (_detEscuelaActual) editarEscuela(_detEscuelaActual.id);
+}
+
+// ── Invitar usuario desde detalle ──
+function detAbrirInvitar() {
+  if (!_detEscuelaActual) return;
+  document.getElementById('det-inv-escuela-nombre').textContent = _detEscuelaActual.nombre || _detEscuelaActual.cct;
+  document.getElementById('det-inv-nombre').value = '';
+  document.getElementById('det-inv-email').value = '';
+  document.getElementById('det-inv-rol').value = 'docente';
+  document.getElementById('det-inv-resultado').style.display = 'none';
+  document.getElementById('modal-det-invitar').style.display = 'flex';
+}
+
+function cerrarModalDetInvitar() {
+  document.getElementById('modal-det-invitar').style.display = 'none';
+}
+
+async function detEnviarInvitacion() {
+  const nombre = document.getElementById('det-inv-nombre').value.trim();
+  const email  = document.getElementById('det-inv-email').value.trim().toLowerCase();
+  const rol    = document.getElementById('det-inv-rol').value;
+  const res    = document.getElementById('det-inv-resultado');
+
+  if (!email) { res.style.display='block'; res.style.background='#fee2e2'; res.style.color='#991b1b'; res.textContent='⚠️ Ingresa un email'; return; }
+
+  const e = _detEscuelaActual;
+  const token = generarToken();
+  const expira = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  const link = `${location.origin}/index.html?invite=${token}`;
+
+  res.style.display='block'; res.style.background='var(--bg3)'; res.style.color='var(--text3)'; res.textContent='Generando invitación…';
+
+  try {
+    // Verificar si el email ya tiene cuenta en esta escuela
+    if (sb) {
+      const { data: existe } = await sb.from('usuarios').select('id,rol').eq('email', email).eq('escuela_cct', e.cct).maybeSingle();
+      if (existe) {
+        res.style.background='#fef3c7'; res.style.color='#92400e';
+        res.textContent = `⚠️ Este correo ya tiene cuenta en esta escuela con rol: ${existe.rol}`;
+        return;
+      }
+
+      const { error: invErr } = await sb.from('invitaciones').insert({
+        token, escuela_id: e.id, escuela_cct: e.cct, rol,
+        email_destino: email, nombre_destino: nombre,
+        estado: 'pendiente', expira_at: expira,
+        created_at: new Date().toISOString()
+      });
+      if (invErr) throw invErr;
+    }
+
+    // Enviar email
+    const emailEnviado = await enviarInvitacionBackend({
+      email, rol, escuelaNombre: e.nombre, escuelaId: e.id,
+      escuelaCct: e.cct, token, link,
+    }).catch(() => false);
+
+    res.style.background='#dcfce7'; res.style.color='#166534';
+    res.textContent = emailEnviado
+      ? `✅ Invitación enviada a ${email}`
+      : `✅ Invitación creada. Email no enviado — comparte el link: ${link}`;
+
+    await detCargarDatos();
+  } catch(err) {
+    res.style.background='#fee2e2'; res.style.color='#991b1b';
+    res.textContent = '❌ Error: ' + err.message;
+  }
+}
+
+// ── Cambiar rol ──
+async function detCambiarRol(id, rolActual, nombre) {
+  const roles = ['director','admin','subdirector','coordinador','docente','prefecto','ts'];
+  const nuevoRol = prompt(`Cambiar rol de "${nombre}"\nRol actual: ${rolActual}\n\nRoles disponibles:\n${roles.join(', ')}\n\nEscribe el nuevo rol:`, rolActual);
+  if (!nuevoRol || nuevoRol === rolActual) return;
+  if (!roles.includes(nuevoRol)) { toast('Rol no válido', 'err'); return; }
+  if (!sb) return;
+  const { error } = await sb.from('usuarios').update({ rol: nuevoRol }).eq('id', id);
+  if (error) { toast('Error: ' + error.message, 'err'); return; }
+  toast(`Rol actualizado a ${nuevoRol}`, 'ok');
+  await detCargarDatos();
+}
+
+// ── Eliminar usuario desde detalle ──
+async function detEliminarUsuario(id, email) {
+  if (!confirm(`¿Eliminar al usuario ${email}? Esta acción no se puede deshacer.`)) return;
+  if (!sb) return;
+  const { error } = await sb.from('usuarios').delete().eq('id', id);
+  if (error) { toast('Error: ' + error.message, 'err'); return; }
+  toast('Usuario eliminado', 'ok');
+  await detCargarDatos();
+}
+
+// ── Reenviar invitación ──
+async function detReenviarInv(id) {
+  const inv = _detInvitacionesEscuela.find(i => i.id === id);
+  if (!inv) return;
+  const e = _detEscuelaActual;
+  const link = `${location.origin}/index.html?invite=${inv.token}`;
+  const emailEnviado = await enviarInvitacionBackend({
+    email: inv.email_destino, rol: inv.rol,
+    escuelaNombre: e.nombre, escuelaId: e.id,
+    escuelaCct: e.cct, token: inv.token, link,
+  }).catch(() => false);
+  if (sb) {
+    await sb.from('invitaciones').update({
+      expira_at: new Date(Date.now() + 7*24*60*60*1000).toISOString(),
+      reenviado_at: new Date().toISOString()
+    }).eq('id', id);
+  }
+  toast(emailEnviado ? `Email reenviado a ${inv.email_destino}` : 'Invitación actualizada — comparte el link manualmente', emailEnviado?'ok':'info');
+  await detCargarDatos();
+}
+
+// ── Eliminar invitación ──
+async function detEliminarInv(id) {
+  if (!confirm('¿Eliminar esta invitación?')) return;
+  if (!sb) return;
+  const { error } = await sb.from('invitaciones').delete().eq('id', id);
+  if (error) { toast('Error: ' + error.message, 'err'); return; }
+  toast('Invitación eliminada', 'ok');
+  await detCargarDatos();
 }
 
 </script>
