@@ -10,6 +10,7 @@ export async function requireUser(req: Request): Promise<AuthContext> {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const saSecret = Deno.env.get("SA_SECRET"); // Clave estática para superadmin
   const authHeader = req.headers.get("Authorization") || "";
 
   if (!supabaseUrl || !anonKey || !serviceRoleKey) {
@@ -20,11 +21,29 @@ export async function requireUser(req: Request): Promise<AuthContext> {
     throw new Error("Authorization bearer token requerido");
   }
 
-  const userClient = createClient(supabaseUrl, anonKey, {
-    global: { headers: { Authorization: authHeader } },
-  });
+  const token = authHeader.slice(7); // quitar "Bearer "
+
   const admin = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false },
+  });
+
+  // ── Bypass para superadmin con SA_SECRET ──────────────────────────────────
+  // Si el token coincide con SA_SECRET, se omite la validación JWT.
+  // SA_SECRET es una clave estática que nunca expira.
+  if (saSecret && token === saSecret) {
+    return {
+      admin,
+      userClient: admin, // superadmin usa service role directamente
+      user: {
+        id: "superadmin",
+        email: "superadmin@siembra.internal",
+      },
+    };
+  }
+
+  // ── Validación JWT normal para otros usuarios ─────────────────────────────
+  const userClient = createClient(supabaseUrl, anonKey, {
+    global: { headers: { Authorization: authHeader } },
   });
 
   const { data, error } = await userClient.auth.getUser();
