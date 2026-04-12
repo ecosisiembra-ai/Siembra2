@@ -19,6 +19,7 @@ function renderTablaEscuelas(data) {
       <td>
         <div style="display:flex;gap:6px;">
           <button class="btn btn-outline btn-sm" onclick="editarEscuela('${e.id}')" title="Editar escuela">✏️</button>
+          <button class="btn btn-primary btn-sm" onclick="verDetalleEscuela('${e.id}')" title="Ver detalle y usuarios">👁 Ver</button>
           <button class="btn btn-outline btn-sm" onclick="generarInvEscuela('${e.id}','${e.nombre||e.cct}')">+ Invitar</button>
           <button class="btn btn-danger btn-sm" onclick="toggleEscuela('${e.id}',${activo})">${activo ? 'Suspender' : 'Activar'}</button>
           <button class="btn btn-danger btn-sm" onclick="eliminarEscuela('${e.id}','${(e.nombre||e.cct||'').replace(/'/g,'')}')" title="Eliminar escuela permanentemente">🗑️</button>
