@@ -118,14 +118,30 @@ function invLinkParaRol(rol, token) {
 async function enviarInvitacionBackend({ email, rol, escuelaNombre, escuelaId, escuelaCct, token, link }) {
   if (!sb || !email) return false;
   let jwt = '';
+
+  // 1. Intentar refrescar la sesion primero para evitar tokens expirados
   try {
-    const { data: { session } } = await sb.auth.getSession();
-    if (session?.access_token) jwt = session.access_token;
+    const { data: refreshData } = await sb.auth.refreshSession();
+    if (refreshData?.session?.access_token) {
+      jwt = refreshData.session.access_token;
+      try { sessionStorage.setItem('siembra_admin_jwt', jwt); } catch(_) {}
+    }
   } catch(e) {}
+
+  // 2. Si no hubo refresh exitoso, usar la sesion actual
+  if (!jwt) {
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (session?.access_token) jwt = session.access_token;
+    } catch(e) {}
+  }
+
+  // 3. Ultimo fallback: sessionStorage
   if (!jwt) {
     try { jwt = sessionStorage.getItem('siembra_admin_jwt') || ''; } catch(e) {}
   }
-  if (!jwt) throw new Error('Sesion de superadmin no valida');
+
+  if (!jwt) throw new Error('Sesion de superadmin no valida. Por favor recarga la pagina e inicia sesion de nuevo.');
 
   const resp = await fetch(SA_URL + '/functions/v1/invite-user', {
     method: 'POST',
@@ -145,7 +161,11 @@ async function enviarInvitacionBackend({ email, rol, escuelaNombre, escuelaId, e
     }),
   });
 
-  if (!resp.ok) return false;
+  if (!resp.ok) {
+    const errBody = await resp.json().catch(() => ({}));
+    console.warn('[invite-user] Error HTTP', resp.status, errBody);
+    return false;
+  }
   const data = await resp.json().catch(() => ({}));
   return Boolean(data.email_enviado || data.email_sent);
 }
