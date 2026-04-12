@@ -1,0 +1,353 @@
+// ── TABLAS ──
+function renderTablaEscuelas(data) {
+  const tb = document.getElementById('esc-tbody');
+  if (!tb) return;
+  if (!data.length) { tb.innerHTML = `<tr><td colspan="8" style="color:var(--text3);text-align:center;padding:32px;">Sin escuelas registradas</td></tr>`; return; }
+  tb.innerHTML = data.map(e => {
+    const activo = e.activa !== false;
+    const met = saMetricasEscuela(e);
+    const usrCnt = met.usuarios;
+    const dir    = usuariosData.find(u => saUsuarioPerteneceAEscuela(u, e) && (u.rol === 'director' || u.rol === 'admin'));
+    return `<tr>
+      <td style="font-weight:500;">${e.nombre || '—'}</td>
+      <td class="tbl-mono">${e.cct || '—'}</td>
+      <td style="font-size:12px;">${dir ? dir.nombre || dir.email : '<span style="color:var(--text3)">Sin director</span>'}</td>
+      <td style="font-size:12px;color:var(--text2);">${e.municipio || '—'}${e.estado ? ', ' + e.estado : ''}</td>
+      <td><span class="badge badge-blue">${e.nivel || 'primaria'}</span></td>
+      <td class="tbl-mono">${usrCnt}<div style="font-size:10px;color:var(--text3);margin-top:3px;">${met.alumnos} al - ${met.docentes} doc - ${met.grupos} gr</div></td>
+      <td><span class="badge ${activo ? 'badge-green' : 'badge-gray'}"><span class="badge-dot2"></span>${activo ? 'activa' : 'inactiva'}</span></td>
+      <td>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-outline btn-sm" onclick="editarEscuela('${e.id}')" title="Editar escuela">✏️</button>
+          <button class="btn btn-outline btn-sm" onclick="generarInvEscuela('${e.id}','${e.nombre||e.cct}')">+ Invitar</button>
+          <button class="btn btn-danger btn-sm" onclick="toggleEscuela('${e.id}',${activo})">${activo ? 'Suspender' : 'Activar'}</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function editarEscuela(id) {
+  const esc = escuelasData.find(e => e.id === id);
+  if (!esc) return;
+  // Pre-llenar formulario de nueva escuela con datos existentes
+  navTo('nueva-escuela');
+  setTimeout(() => {
+    const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
+    setVal('ne-nombre',   esc.nombre);
+    setVal('ne-cct',      esc.cct);
+    setVal('ne-municipio',esc.municipio);
+    setVal('ne-estado',   esc.estado);
+    setVal('ne-nivel',    esc.nivel);
+    setVal('ne-plan-tipo',esc.plan_tipo);
+    const btn = document.getElementById('ne-btn');
+    if (btn) { btn.textContent = 'Guardar cambios ->'; btn.setAttribute('data-edit-id', id); }
+    toast('Editando escuela - modifica los campos y guarda', 'info');
+  }, 150);
+}
+
+function filtrarEscuelas(q) {
+  const f = q.toLowerCase();
+  renderTablaEscuelas(escuelasData.filter(e =>
+    (e.nombre||'').toLowerCase().includes(f) || (e.cct||'').toLowerCase().includes(f)
+  ));
+}
+
+function renderTablaUsuarios(data) {
+  const tb = document.getElementById('usr-tbody');
+  if (!tb) return;
+  const rolBadge = { director:'badge-blue', admin:'badge-blue', docente:'badge-green', alumno:'badge-amber', padre:'badge-gray', ts:'badge-gray', superadmin:'badge-red' };
+  tb.innerHTML = data.slice(0, 100).map(u => {
+    const escNom = u.escuelas?.nombre || '—';
+    const fecha  = u.created_at ? new Date(u.created_at).toLocaleDateString('es-MX',{day:'numeric',month:'short'}) : '—';
+    return `<tr>
+      <td style="font-weight:500;">${u.nombre || '—'}</td>
+      <td class="tbl-mono" style="font-size:11px;">${u.email || '—'}</td>
+      <td><span class="badge ${rolBadge[u.rol]||'badge-gray'}">${u.rol || '—'}</span></td>
+      <td style="font-size:12px;color:var(--text2);">${escNom}</td>
+      <td class="tbl-mono" style="font-size:11px;">${fecha}</td>
+      <td><span class="badge ${u.activo!==false ? 'badge-green' : 'badge-gray'}"><span class="badge-dot2"></span>${u.activo!==false ? 'activo' : 'inactivo'}</span></td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="6" style="color:var(--text3);text-align:center;padding:32px;">Sin usuarios</td></tr>`;
+}
+
+function filtrarUsuarios() {
+  const escId = document.getElementById('usr-escuela-fil')?.value || '';
+  const rol   = document.getElementById('usr-rol-fil')?.value || '';
+  const f = usuariosData.filter(u =>
+    (!escId || u.escuela_id === escId) &&
+    (!rol || u.rol === rol)
+  );
+  renderTablaUsuarios(f);
+}
+
+function renderTablaInvitaciones(data) {
+  const tb = document.getElementById('inv-tbody');
+  if (!tb) return;
+  tb.innerHTML = data.map(i => {
+    const exp    = i.expira_at ? new Date(i.expira_at).toLocaleDateString('es-MX',{day:'numeric',month:'short',year:'numeric'}) : '—';
+    const usado  = i.estado === 'usado';
+    const exp2   = i.expira_at && new Date(i.expira_at) < new Date();
+    const estado = usado ? 'badge-gray' : exp2 ? 'badge-red' : 'badge-green';
+    const estadoLbl = usado ? 'Usado' : exp2 ? 'Expirado' : 'Pendiente';
+    return `<tr>
+      <td class="tbl-mono" style="font-size:11px;cursor:pointer;" onclick="copiarTexto('${i.token}')" title="Clic para copiar">${(i.token||'').slice(0,16)}...</td>
+      <td style="font-size:12px;">${i.escuelas?.nombre || i.escuela_id || '—'}</td>
+      <td><span class="badge badge-blue">${i.rol||'—'}</span></td>
+      <td class="tbl-mono" style="font-size:11px;">${i.email_destino||'—'}</td>
+      <td class="tbl-mono" style="font-size:11px;">${exp}</td>
+      <td><span class="badge ${estado}"><span class="badge-dot2"></span>${estadoLbl}</span></td>
+      <td>${!usado && !exp2 ? `<button class="btn btn-outline btn-sm" onclick="copiarTexto('${i.token}')">Copiar</button>` : ''}</td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="7" style="color:var(--text3);text-align:center;padding:32px;">Sin invitaciones</td></tr>`;
+}
+
+// ── HELPERS DE INVITACION ──
+function invLinkParaRol(rol, token) {
+  if (rol === 'alumno') return `${location.origin}/alumno.html?invite=${token}`;
+  if (rol === 'padre')  return `${location.origin}/padres.html?invite=${token}`;
+  return `${location.origin}/index.html?invite=${token}`;
+}
+
+// ── CREAR ESCUELA ──
+let _creandoEscuela = false;
+async function crearEscuela() {
+  if (_creandoEscuela) return;
+  _creandoEscuela = true;
+
+  const nombre    = document.getElementById('ne-nombre').value.trim();
+  const cct       = document.getElementById('ne-cct').value.trim().toUpperCase();
+  const municipio = document.getElementById('ne-municipio').value.trim();
+  const estado    = document.getElementById('ne-estado').value;
+  const nivel     = document.getElementById('ne-nivel').value;
+  const limite    = parseInt(document.getElementById('ne-limite').value) || 500;
+  const dirNombre = document.getElementById('ne-dir-nombre').value.trim();
+  const dirEmail  = document.getElementById('ne-dir-email').value.trim().toLowerCase();
+  const dirRol    = document.getElementById('ne-dir-rol').value;
+
+  if (!nombre || !cct) { toast('Ingresa nombre y CCT de la escuela', 'err'); _creandoEscuela = false; return; }
+  if (!dirEmail)        { toast('Ingresa el email del director/a', 'err'); _creandoEscuela = false; return; }
+
+  const btn = document.getElementById('ne-btn');
+  btn.disabled = true; btn.textContent = 'Creando...';
+
+  try {
+    let escuelaId = null;
+
+    if (sb) {
+      // 1. Crear escuela - columnas exactas del esquema
+      const planTipo = document.getElementById('ne-plan-tipo')?.value || 'basico';
+      const escPayload = {
+        nombre,
+        cct,
+        municipio,
+        estado:      estado || 'Nuevo Le\xf3n',
+        nivel:       nivel || 'primaria',
+        plan_tipo:   planTipo,
+        activa:      true,
+        creado_en:   new Date().toISOString()
+      };
+      const { data: esc, error: escErr } = await sb.from('escuelas').insert(escPayload).select('id').single();
+      if (escErr) throw escErr;
+      escuelaId = esc.id;
+    } else {
+      escuelaId = 'demo-' + Date.now();
+    }
+
+    // 2. Generar token de invitacion
+    const token = generarToken();
+    const expira = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    if (sb) {
+      const { error: invErr } = await sb.from('invitaciones').insert({
+        token, escuela_id: escuelaId, rol: dirRol,
+        email_destino: dirEmail, nombre_destino: dirNombre,
+        estado: 'pendiente', expira_at: expira,
+        created_at: new Date().toISOString()
+      });
+      if (invErr) throw invErr;
+    }
+
+    // 3. Mostrar resultado
+    document.getElementById('ne-result').style.display = 'block';
+    document.getElementById('ne-token-display').textContent = token;
+    window._tokenActual = token;
+    window._escuelaCreada = { nombre, cct, dirEmail, dirNombre, token };
+
+    // QR real con qrcode.js
+    const invLink = `${location.origin}/index.html?invite=${token}`;
+    const qrBox = document.getElementById('ne-qr-box');
+    if (qrBox) {
+      qrBox.innerHTML = '<canvas id="ne-qr-canvas"></canvas>';
+      if (window.QRCode) {
+        QRCode.toCanvas(document.getElementById('ne-qr-canvas'), invLink,
+          { width:140, margin:2, color:{ dark:'#0d5c2f', light:'#ffffff' } });
+      } else {
+        qrBox.innerHTML = `<div style="font-size:10px;text-align:center;color:#666;word-break:break-all;padding:8px;"><code>${token.slice(0,24)}...</code></div>`;
+      }
+    }
+    window._invLinkActual = invLink;
+
+    // Enviar email automatico via Edge Function
+    if (dirEmail) {
+      try {
+        let jwt = SA_KEY;
+        try {
+          const { data: { session } } = await sb.auth.getSession();
+          if (session?.access_token) jwt = session.access_token;
+        } catch(e) {}
+
+        const resp = await fetch(SA_URL + '/functions/v1/invite-user', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + jwt,
+          },
+          body: JSON.stringify({
+            email: dirEmail,
+            rol: dirRol,
+            escuela_nombre: nombre,
+            escuela_id: escuelaId,
+            escuela_cct: cct,
+            invited_by: currentAdmin?.email || 'superadmin',
+            token: token,
+            link: invLink,
+          }),
+        });
+        if (resp.ok) {
+          const data = await resp.json().catch(() => ({}));
+          if (data.email_enviado || data.email_sent) {
+            toast(`Escuela "${nombre}" creada - Email enviado a ${dirEmail}`, 'ok');
+          } else {
+            toast(`Escuela "${nombre}" creada - Email no enviado, comparte el link`, 'ok');
+          }
+        } else {
+          toast(`Escuela "${nombre}" creada - Token generado`, 'ok');
+        }
+      } catch(emailErr) {
+        console.warn('Email send error:', emailErr);
+        toast(`Escuela "${nombre}" creada - Token generado`, 'ok');
+      }
+    } else {
+      toast(`Escuela "${nombre}" creada - Token generado`, 'ok');
+    }
+
+    // Recargar datos
+    await cargarEscuelas();
+    await cargarInvitaciones();
+    renderDashboard();
+
+  } catch(e) {
+    toast('Error: ' + e.message, 'err');
+  } finally {
+    _creandoEscuela = false;
+    btn.disabled = false; btn.textContent = 'Crear escuela y generar invitacion ->';
+  }
+}
+
+function limpiarFormEscuela() {
+  ['ne-nombre','ne-cct','ne-municipio','ne-dir-nombre','ne-dir-email'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  document.getElementById('ne-result').style.display = 'none';
+}
+
+function copiarToken() {
+  const t = document.getElementById('ne-token-display').textContent;
+  copiarTexto(t);
+}
+
+function copiarLinkInvitacion() {
+  const t = window._tokenActual;
+  if (!t) return;
+  const link = `${location.origin}/?invite=${t}`;
+  copiarTexto(link);
+}
+
+function compartirWhatsApp() {
+  const link = window._invLinkActual;
+  if (!link) return;
+  const d = window._escuelaCreada || {};
+  const token = window._tokenActual || document.getElementById('ne-token-display')?.textContent || '';
+  const msg = encodeURIComponent(`\uD83C\uDF31 *SIEMBRA* - Invitacion de acceso
+
+\uD83D\uDCCD Escuela: *${d.nombre||'SIEMBRA'}*
+
+\uD83D\uDC49 *Paso 1:* Abre este link para crear tu cuenta:
+${link}
+
+\uD83D\uDC49 *Paso 2:* Completa tu nombre, correo y contrasena
+
+\u23F3 La invitacion expira en 7 dias.
+
+_Si el link no funciona, ve a siembra-nine.vercel.app y usa este token:_
+*${token}*`);
+  window.open(`https://wa.me/?text=${msg}`, '_blank');
+}
+
+// ── EMAIL INVITACION ──
+async function enviarEmailInvitacion() {
+  const d = window._escuelaCreada;
+  if (!d || !d.dirEmail) { toast('No hay datos de invitacion para enviar', 'err'); return; }
+
+  // Abrir cliente de correo con los datos de invitacion
+  const subject = encodeURIComponent('\uD83C\uDF31 SIEMBRA - Invitacion de acceso - ' + (d.nombre || ''));
+  const body = encodeURIComponent(
+    `Hola ${d.dirNombre || ''},\n\n` +
+    `Se te ha generado una invitacion para acceder a SIEMBRA como administrador/director de la escuela ${d.nombre} (${d.cct}).\n\n` +
+    `Tu link de acceso:\n${window._invLinkActual || ''}\n\n` +
+    `Este token expira en 7 dias.\n\n` +
+    `- Equipo SIEMBRA`
+  );
+  window.open(`mailto:${d.dirEmail}?subject=${subject}&body=${body}`, '_blank');
+  toast('\uD83D\uDCE7 Se abrio el cliente de correo para enviar a ' + d.dirEmail, 'ok');
+}
+
+// ── COMPARTIR INVITACION (modal) ──
+function invCopiarLink() {
+  const link = window._invLinkActual;
+  if (link) copiarTexto(link);
+  else toast('No hay link generado', 'err');
+}
+
+function invWhatsApp() {
+  const link = window._invLinkActual;
+  if (!link) return;
+  const email = document.getElementById('inv-email')?.value || '';
+  const rol = document.getElementById('inv-rol-sel')?.value || 'usuario';
+  const escSel = document.getElementById('inv-escuela-sel');
+  const escNombre = escSel?.options[escSel.selectedIndex]?.text?.split('(')[0]?.trim() || 'SIEMBRA';
+  const token = document.getElementById('inv-token-display')?.textContent || '';
+  const msg = encodeURIComponent(`\uD83C\uDF31 *SIEMBRA* - Invitacion de acceso
+
+\uD83D\uDCCD Escuela: *${escNombre}*
+\uD83D\uDC64 Rol: *${rol}*
+
+\uD83D\uDC49 *Abre este link para crear tu cuenta:*
+${link}
+
+\u23F3 Expira en 7 dias.
+
+_Token de respaldo: ${token}_`);
+  window.open(`https://wa.me/?text=${msg}`, '_blank');
+}
+
+function invEnviarEmail() {
+  const link = window._invLinkActual;
+  const email = document.getElementById('inv-email')?.value || '';
+  const rol = document.getElementById('inv-rol-sel')?.value || 'usuario';
+  const escSel = document.getElementById('inv-escuela-sel');
+  const escNombre = escSel?.options[escSel.selectedIndex]?.text?.split('(')[0]?.trim() || 'SIEMBRA';
+  const token = document.getElementById('inv-token-display')?.textContent || '';
+
+  const subject = encodeURIComponent(`\uD83C\uDF31 SIEMBRA - Invitacion como ${rol} - ${escNombre}`);
+  const body = encodeURIComponent(
+    `Hola,\n\n` +
+    `Se te ha generado una invitacion para acceder a SIEMBRA como ${rol} de la escuela ${escNombre}.\n\n` +
+    `Abre este link para crear tu cuenta:\n${link}\n\n` +
+    `Este enlace expira en 7 dias.\n\n` +
+    `- Equipo SIEMBRA`
+  );
+  window.open(`mailto:${email}?subject=${subject}&body=${body}`, '_blank');
+  toast('\uD83D\uDCE7 Se abrio tu correo para enviar a ' + (email || 'destinatario'), 'ok');
+}
