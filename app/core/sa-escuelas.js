@@ -21,6 +21,7 @@ function renderTablaEscuelas(data) {
           <button class="btn btn-outline btn-sm" onclick="editarEscuela('${e.id}')" title="Editar escuela">✏️</button>
           <button class="btn btn-outline btn-sm" onclick="generarInvEscuela('${e.id}','${e.nombre||e.cct}')">+ Invitar</button>
           <button class="btn btn-danger btn-sm" onclick="toggleEscuela('${e.id}',${activo})">${activo ? 'Suspender' : 'Activar'}</button>
+          <button class="btn btn-danger btn-sm" onclick="eliminarEscuela('${e.id}','${(e.nombre||e.cct||'').replace(/'/g,'')}')" title="Eliminar escuela permanentemente">🗑️</button>
         </div>
       </td>
     </tr>`;
@@ -73,6 +74,7 @@ function renderTablaUsuarios(data) {
       <td style="font-size:12px;color:var(--text2);">${escNom}</td>
       <td class="tbl-mono" style="font-size:11px;">${fecha}</td>
       <td><span class="badge ${u.activo!==false ? 'badge-green' : 'badge-gray'}"><span class="badge-dot2"></span>${u.activo!==false ? 'activo' : 'inactivo'}</span></td>
+      <td><button class="btn btn-danger btn-sm" onclick="eliminarUsuario('${u.id}','${(u.email||'').replace(/'/g,'')}')">🗑️</button></td>
     </tr>`;
   }).join('') || `<tr><td colspan="6" style="color:var(--text3);text-align:center;padding:32px;">Sin usuarios</td></tr>`;
 }
@@ -496,4 +498,48 @@ async function eliminarInvitacion(id) {
 
   await cargarInvitaciones();
   toast('Invitacion eliminada', 'ok');
+
+async function eliminarEscuela(id, nombre) {
+  if (!confirm('¿Eliminar la escuela "' + (nombre || id) + '" permanentemente? Esta accion no se puede deshacer.')) return;
+  if (!confirm('CONFIRMAR: Se eliminaran todos los datos de la escuela. ¿Continuar?')) return;
+  if (!sb) { toast('Supabase no disponible', 'err'); return; }
+  try {
+    // Eliminar usuarios de la escuela
+    await sb.from('usuarios').delete().eq('escuela_id', id);
+    // Eliminar invitaciones de la escuela
+    await sb.from('invitaciones').delete().eq('escuela_id', id);
+    // Eliminar la escuela
+    const { error } = await sb.from('escuelas').delete().eq('id', id);
+    if (error) throw error;
+    await cargarEscuelas();
+    await cargarUsuarios();
+    toast('Escuela eliminada correctamente', 'ok');
+  } catch(e) {
+    toast('Error al eliminar: ' + (e.message || e), 'err');
+  }
+}
+
+async function eliminarUsuario(id, email) {
+  if (!confirm('¿Eliminar al usuario ' + (email || id) + '? Esta accion no se puede deshacer.')) return;
+  if (!sb) { toast('Supabase no disponible', 'err'); return; }
+  try {
+    // Eliminar de tabla usuarios
+    const { error } = await sb.from('usuarios').delete().eq('id', id);
+    if (error) throw error;
+    // Intentar eliminar de Auth (puede fallar sin service role en frontend)
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (session) {
+        await fetch(window.SA_URL + '/auth/v1/admin/users/' + id, {
+          method: 'DELETE',
+          headers: { 'apikey': window.SA_KEY || '', 'Authorization': 'Bearer ' + (window.SA_SECRET || session.access_token) }
+        });
+      }
+    } catch(_) {}
+    await cargarUsuarios();
+    toast('Usuario eliminado correctamente', 'ok');
+  } catch(e) {
+    toast('Error al eliminar: ' + (e.message || e), 'err');
+  }
+}
 }
