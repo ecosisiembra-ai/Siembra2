@@ -757,9 +757,13 @@ function hubLogout() {
   }
   const btn = document.getElementById('hub-login-btn');
   if (btn) { btn.disabled = true; btn.style.opacity = '0.5'; }
-  // Limpiar timestamps de sesión
+  // Limpiar timestamps y caché de perfil
   sessionStorage.removeItem('siembra_login_ts');
   sessionStorage.removeItem('siembra_last_activity');
+  // Limpiar todos los cachés de perfil para que el próximo login consulte Supabase
+  Object.keys(sessionStorage)
+    .filter(k => k.startsWith('siembra_perfil_'))
+    .forEach(k => sessionStorage.removeItem(k));
   if (sb) sb.auth.signOut().catch(()=>{});
 }
 
