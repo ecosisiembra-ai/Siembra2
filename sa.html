@@ -1219,6 +1219,10 @@ table.tbl tr:hover td{background:var(--bg3);}
 // ── Supabase ──
 const SA_URL = 'https://mgmkzxtljkyoxqeytbjv.supabase.co';
 const SA_KEY = 'sb_publishable_OrPA2AtUeRl20uuj6uqTaw_yYnWAWt3';
+// SA_SECRET: clave estática para llamadas superadmin→Edge Functions (nunca expira).
+// Debe coincidir con el secret SA_SECRET en Supabase → Edge Functions → Secrets.
+const SA_SECRET = 'AX9FJ7PA9USBBcN5nLqoTdJI5Q0yzrCNnvkDRwzNRe4';
+window.SA_SECRET = SA_SECRET;
 let sb = null;
 let currentAdmin = null;
 
