@@ -19,7 +19,7 @@ Deno.serve(async (req) => {
     const escuelaCct = String(body?.escuela_cct || "").trim() || null;
     const escuelaId = body?.escuela_id || null;
 
-    console.log("[invite-user] Solicitud recibida:", { email, rol, escuelaNombre, escuelaId });
+    console.log("[invite-user] Solicitud de:", user.email, "| Para:", email, "| Rol:", rol);
 
     if (!email) {
       return json({ error: "Email requerido" }, { status: 400 });
@@ -38,15 +38,8 @@ Deno.serve(async (req) => {
       reenviado_at: new Date().toISOString(),
     };
 
-    const { error: dbError } = await admin
-      .from("invitaciones")
-      .upsert(invitation, { onConflict: "token" });
-
-    if (dbError) {
-      console.error("[invite-user] Error guardando invitacion en BD:", dbError);
-    } else {
-      console.log("[invite-user] Invitacion guardada en BD correctamente");
-    }
+    await admin.from("invitaciones").upsert(invitation, { onConflict: "token" });
+    console.log("[invite-user] Invitacion guardada en BD");
 
     const emailPayload = {
       to: email,
@@ -65,63 +58,46 @@ Deno.serve(async (req) => {
     let emailSent = false;
 
     if (webhookUrl) {
-      console.log("[invite-user] Intentando envio via webhook:", webhookUrl);
+      console.log("[invite-user] Enviando via webhook...");
       const resp = await fetch(webhookUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(emailPayload),
-      }).catch((err) => {
-        console.error("[invite-user] Error en webhook fetch:", err);
-        return null;
-      });
+      }).catch((e) => { console.error("[invite-user] Webhook error:", e); return null; });
       emailSent = Boolean(resp?.ok);
-      console.log("[invite-user] Webhook status:", resp?.status, "emailSent:", emailSent);
+      console.log("[invite-user] Webhook status:", resp?.status, "ok:", emailSent);
     } else {
       const brevoApiKey = Deno.env.get("BREVO_API_KEY");
       const brevoFromEmail = Deno.env.get("BREVO_FROM_EMAIL");
       const brevoFromName = Deno.env.get("BREVO_FROM_NAME") || "SIEMBRA";
 
-      console.log("[invite-user] Variables Brevo presentes:", {
-        tieneApiKey: Boolean(brevoApiKey),
-        fromEmail: brevoFromEmail || "(no configurado)",
-        fromName: brevoFromName,
+      console.log("[invite-user] Brevo config:", {
+        tieneKey: Boolean(brevoApiKey),
+        from: brevoFromEmail || "(no definido)",
       });
 
       if (brevoApiKey && brevoFromEmail) {
-        console.log("[invite-user] Enviando correo via Brevo a:", email);
-
-        const brevoBody = {
-          sender: { email: brevoFromEmail, name: brevoFromName },
-          to: [{ email }],
-          subject: emailPayload.subject,
-          htmlContent: emailPayload.html,
-        };
-
-        const resp = await fetch("https://api.brevo.com/v3/smtp/email", {
+        const brevoResp = await fetch("https://api.brevo.com/v3/smtp/email", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "api-key": brevoApiKey,
           },
-          body: JSON.stringify(brevoBody),
-        }).catch((err) => {
-          console.error("[invite-user] Error en fetch a Brevo:", err);
-          return null;
-        });
+          body: JSON.stringify({
+            sender: { email: brevoFromEmail, name: brevoFromName },
+            to: [{ email }],
+            subject: emailPayload.subject,
+            htmlContent: emailPayload.html,
+          }),
+        }).catch((e) => { console.error("[invite-user] Brevo fetch error:", e); return null; });
 
-        const brevoStatus = resp?.status;
-        let brevoResponseText = "";
-        try {
-          brevoResponseText = await resp?.text() ?? "";
-        } catch (_) {}
+        const brevoStatus = brevoResp?.status ?? "null";
+        const brevoBody = await brevoResp?.text().catch(() => "") ?? "";
+        console.log("[invite-user] Brevo status:", brevoStatus, "| body:", brevoBody);
 
-        console.log("[invite-user] Brevo respuesta status:", brevoStatus);
-        console.log("[invite-user] Brevo respuesta body:", brevoResponseText);
-
-        emailSent = Boolean(resp?.ok);
-        console.log("[invite-user] emailSent:", emailSent);
+        emailSent = Boolean(brevoResp?.ok);
       } else {
-        console.warn("[invite-user] Faltan variables Brevo - no se puede enviar correo");
+        console.warn("[invite-user] Faltan BREVO_API_KEY o BREVO_FROM_EMAIL");
       }
     }
 
@@ -133,7 +109,7 @@ Deno.serve(async (req) => {
       email_enviado: emailSent,
       note: emailSent
         ? "Invitacion enviada por correo"
-        : "Invitacion guardada. Revisa los logs de la Edge Function para ver el error.",
+        : "Invitacion guardada. Revisa los logs de la Edge Function para ver el error de envio.",
     });
   } catch (error) {
     console.error("[invite-user] Error general:", error);
