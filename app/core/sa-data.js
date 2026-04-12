@@ -28,7 +28,7 @@ async function cargarEscuelas() {
   }
   try {
     const { data, error } = await sb.from('escuelas')
-      .select('id, cct, nombre, nivel, municipio, estado, zona_escolar, turno, ciclo_actual, activa, created_at')
+      .select('id, cct, nombre, nivel, municipio, estado, zona_escolar, turno, ciclo_actual, activa, created_at, limite_alumnos, plan_tipo, admin_nombre, admin_email')
       .order('created_at', { ascending: false });
     if (error) throw error;
     escuelasData = data || [];
