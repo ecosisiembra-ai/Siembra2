@@ -19,6 +19,8 @@ Deno.serve(async (req) => {
     const escuelaCct = String(body?.escuela_cct || "").trim() || null;
     const escuelaId = body?.escuela_id || null;
 
+    console.log("[invite-user] Solicitud recibida:", { email, rol, escuelaNombre, escuelaId });
+
     if (!email) {
       return json({ error: "Email requerido" }, { status: 400 });
     }
@@ -36,7 +38,15 @@ Deno.serve(async (req) => {
       reenviado_at: new Date().toISOString(),
     };
 
-    await admin.from("invitaciones").upsert(invitation, { onConflict: "token" });
+    const { error: dbError } = await admin
+      .from("invitaciones")
+      .upsert(invitation, { onConflict: "token" });
+
+    if (dbError) {
+      console.error("[invite-user] Error guardando invitacion en BD:", dbError);
+    } else {
+      console.log("[invite-user] Invitacion guardada en BD correctamente");
+    }
 
     const emailPayload = {
       to: email,
@@ -55,36 +65,63 @@ Deno.serve(async (req) => {
     let emailSent = false;
 
     if (webhookUrl) {
+      console.log("[invite-user] Intentando envio via webhook:", webhookUrl);
       const resp = await fetch(webhookUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(emailPayload),
-      }).catch(() => null);
+      }).catch((err) => {
+        console.error("[invite-user] Error en webhook fetch:", err);
+        return null;
+      });
       emailSent = Boolean(resp?.ok);
+      console.log("[invite-user] Webhook status:", resp?.status, "emailSent:", emailSent);
     } else {
       const brevoApiKey = Deno.env.get("BREVO_API_KEY");
       const brevoFromEmail = Deno.env.get("BREVO_FROM_EMAIL");
       const brevoFromName = Deno.env.get("BREVO_FROM_NAME") || "SIEMBRA";
 
+      console.log("[invite-user] Variables Brevo presentes:", {
+        tieneApiKey: Boolean(brevoApiKey),
+        fromEmail: brevoFromEmail || "(no configurado)",
+        fromName: brevoFromName,
+      });
+
       if (brevoApiKey && brevoFromEmail) {
+        console.log("[invite-user] Enviando correo via Brevo a:", email);
+
+        const brevoBody = {
+          sender: { email: brevoFromEmail, name: brevoFromName },
+          to: [{ email }],
+          subject: emailPayload.subject,
+          htmlContent: emailPayload.html,
+        };
+
         const resp = await fetch("https://api.brevo.com/v3/smtp/email", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "api-key": brevoApiKey,
           },
-          body: JSON.stringify({
-            sender: {
-              email: brevoFromEmail,
-              name: brevoFromName,
-            },
-            to: [{ email }],
-            subject: emailPayload.subject,
-            htmlContent: emailPayload.html,
-          }),
-        }).catch(() => null);
+          body: JSON.stringify(brevoBody),
+        }).catch((err) => {
+          console.error("[invite-user] Error en fetch a Brevo:", err);
+          return null;
+        });
+
+        const brevoStatus = resp?.status;
+        let brevoResponseText = "";
+        try {
+          brevoResponseText = await resp?.text() ?? "";
+        } catch (_) {}
+
+        console.log("[invite-user] Brevo respuesta status:", brevoStatus);
+        console.log("[invite-user] Brevo respuesta body:", brevoResponseText);
 
         emailSent = Boolean(resp?.ok);
+        console.log("[invite-user] emailSent:", emailSent);
+      } else {
+        console.warn("[invite-user] Faltan variables Brevo - no se puede enviar correo");
       }
     }
 
@@ -96,9 +133,13 @@ Deno.serve(async (req) => {
       email_enviado: emailSent,
       note: emailSent
         ? "Invitacion enviada por correo"
-        : "Invitacion guardada. Configura EMAIL_WEBHOOK_URL o BREVO_API_KEY/BREVO_FROM_EMAIL para enviar correo real.",
+        : "Invitacion guardada. Revisa los logs de la Edge Function para ver el error.",
     });
   } catch (error) {
-    return json({ error: error instanceof Error ? error.message : "Error interno" }, { status: 401 });
+    console.error("[invite-user] Error general:", error);
+    return json(
+      { error: error instanceof Error ? error.message : "Error interno" },
+      { status: 401 }
+    );
   }
 });
