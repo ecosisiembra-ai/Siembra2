@@ -122,38 +122,22 @@ function invLinkParaRol(rol, token) {
 }
 
 async function enviarInvitacionBackend({ email, rol, escuelaNombre, escuelaId, escuelaCct, token, link }) {
-  if (!sb || !email) return false;
-  let jwt = '';
+  if (!email) return false;
 
-  // 1. Intentar refrescar la sesion primero para evitar tokens expirados
-  try {
-    const { data: refreshData } = await sb.auth.refreshSession();
-    if (refreshData?.session?.access_token) {
-      jwt = refreshData.session.access_token;
-      try { sessionStorage.setItem('siembra_admin_jwt', jwt); } catch(_) {}
-    }
-  } catch(e) {}
-
-  // 2. Si no hubo refresh exitoso, usar la sesion actual
-  if (!jwt) {
-    try {
-      const { data: { session } } = await sb.auth.getSession();
-      if (session?.access_token) jwt = session.access_token;
-    } catch(e) {}
+  // Usar SA_SECRET (clave estática que nunca expira) en lugar del JWT de sesión.
+  // Esto elimina el problema de sesiones expiradas por completo.
+  const secret = window.SA_SECRET || '';
+  if (!secret) {
+    console.error('[invite-user] SA_SECRET no definido en sa.html');
+    toast('Error de configuración: SA_SECRET no definido', 'err');
+    return false;
   }
-
-  // 3. Ultimo fallback: sessionStorage
-  if (!jwt) {
-    try { jwt = sessionStorage.getItem('siembra_admin_jwt') || ''; } catch(e) {}
-  }
-
-  if (!jwt) throw new Error('Sesion de superadmin no valida. Por favor recarga la pagina e inicia sesion de nuevo.');
 
   const resp = await fetch(SA_URL + '/functions/v1/invite-user', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + jwt,
+      'Authorization': 'Bearer ' + secret,
     },
     body: JSON.stringify({
       email,
@@ -170,10 +154,6 @@ async function enviarInvitacionBackend({ email, rol, escuelaNombre, escuelaId, e
   if (!resp.ok) {
     const errBody = await resp.json().catch(() => ({}));
     console.warn('[invite-user] Error HTTP', resp.status, errBody);
-    if (resp.status === 401) {
-      // Sesion expirada - avisar al usuario para que recargue
-      toast('⚠️ Tu sesión expiró. Recarga la página e inicia sesión de nuevo para enviar la invitación por correo.', 'err');
-    }
     return false;
   }
   const data = await resp.json().catch(() => ({}));
