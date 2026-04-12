@@ -34,12 +34,18 @@ function editarEscuela(id) {
   navTo('nueva-escuela');
   setTimeout(() => {
     const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
-    setVal('ne-nombre',   esc.nombre);
-    setVal('ne-cct',      esc.cct);
-    setVal('ne-municipio',esc.municipio);
-    setVal('ne-estado',   esc.estado);
-    setVal('ne-nivel',    esc.nivel);
-    setVal('ne-plan-tipo',esc.plan_tipo);
+    setVal('ne-nombre',    esc.nombre);
+    setVal('ne-cct',       esc.cct);
+    setVal('ne-municipio', esc.municipio);
+    setVal('ne-estado',    esc.estado);
+    setVal('ne-nivel',     esc.nivel);
+    setVal('ne-plan-tipo', esc.plan_tipo);
+    // Límite de alumnos: usar el valor real, no el default del HTML (500)
+    const limEl = document.getElementById('ne-limite');
+    if (limEl) limEl.value = esc.limite_alumnos != null ? esc.limite_alumnos : 500;
+    // Director/admin - pre-llenar si existen
+    setVal('ne-dir-nombre', esc.admin_nombre);
+    setVal('ne-dir-email',  esc.admin_email);
     const btn = document.getElementById('ne-btn');
     if (btn) { btn.textContent = 'Guardar cambios ->'; btn.setAttribute('data-edit-id', id); }
     toast('Editando escuela - modifica los campos y guarda', 'info');
@@ -164,6 +170,10 @@ async function enviarInvitacionBackend({ email, rol, escuelaNombre, escuelaId, e
   if (!resp.ok) {
     const errBody = await resp.json().catch(() => ({}));
     console.warn('[invite-user] Error HTTP', resp.status, errBody);
+    if (resp.status === 401) {
+      // Sesion expirada - avisar al usuario para que recargue
+      toast('⚠️ Tu sesión expiró. Recarga la página e inicia sesión de nuevo para enviar la invitación por correo.', 'err');
+    }
     return false;
   }
   const data = await resp.json().catch(() => ({}));
