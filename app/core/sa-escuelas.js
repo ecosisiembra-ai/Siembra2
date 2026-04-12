@@ -124,28 +124,16 @@ function invLinkParaRol(rol, token) {
 async function enviarInvitacionBackend({ email, rol, escuelaNombre, escuelaId, escuelaCct, token, link }) {
   if (!email) return false;
 
-  // Usar SA_SECRET (clave estática que nunca expira) en lugar del JWT de sesión.
-  // Esto elimina el problema de sesiones expiradas por completo.
-  const secret = window.SA_SECRET || '';
-  if (!secret) {
-    console.error('[invite-user] SA_SECRET no definido en sa.html');
-    toast('Error de configuración: SA_SECRET no definido', 'err');
-    return false;
-  }
-
   const resp = await fetch(SA_URL + '/functions/v1/invite-user', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + secret,
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       email,
       rol,
       escuela_nombre: escuelaNombre,
-      escuela_id: escuelaId,
-      escuela_cct: escuelaCct,
-      invited_by: currentAdmin?.email || 'superadmin',
+      escuela_id:     escuelaId,
+      escuela_cct:    escuelaCct,
+      invited_by:     currentAdmin?.email || 'superadmin',
       token,
       link,
     }),
