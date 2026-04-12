@@ -40,7 +40,7 @@ enable_signup = true
 verify_jwt = true
 
 [functions.invite-user]
-verify_jwt = true
+verify_jwt = false
 
 [functions.conekta-checkout]
 verify_jwt = true
